@@ -3,3 +3,10 @@ dist
 .next
 .turbo
 *.env
+
+# AI Agent & IDE configs
+.agent/
+.claude/
+.cursor/
+.gemini/
+.kiro/
