@@ -34,7 +34,36 @@ export default function RootLayout({
     <html
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} ${spaceGrotesk.variable} h-full antialiased`}
+      suppressHydrationWarning
     >
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              (function() {
+                try {
+                  var isHub = window.location.pathname.indexOf('/o/') !== -1;
+                  if (isHub) {
+                    var savedHub = localStorage.getItem('eventsplug-hub-theme-preference');
+                    if (savedHub === 'light') {
+                      document.documentElement.classList.add('light-hub');
+                    } else {
+                      document.documentElement.classList.add('dark-hub');
+                    }
+                  } else {
+                    var savedAdmin = localStorage.getItem('eventsplug-admin-theme-preference');
+                    if (savedAdmin === 'light') {
+                      document.documentElement.classList.add('light-admin');
+                    } else {
+                      document.documentElement.classList.add('dark-admin');
+                    }
+                  }
+                } catch (e) {}
+              })();
+            `,
+          }}
+        />
+      </head>
       <body className="min-h-full flex flex-col">
         <QueryProvider>
           <ToastProvider>

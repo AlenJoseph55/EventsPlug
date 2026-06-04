@@ -69,12 +69,14 @@ export default function ShareEventModal({ event, onClose }: ShareEventModalProps
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm transition-all duration-300">
-      <div className="relative w-full max-w-lg bg-bg-panel border border-border-main rounded-3xl shadow-2xl p-6 overflow-hidden">
+    <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center p-0 md:p-4 bg-black/70 backdrop-blur-sm animate-backdropFade">
+      <div className="relative w-full md:max-w-lg bg-bg-panel border-t md:border border-border-main rounded-t-3xl md:rounded-3xl shadow-2xl p-6 max-h-[85vh] md:max-h-none overflow-y-auto animate-responsiveModal">
+        {/* Mobile Bottom Sheet Grab Handle */}
+        <div className="w-12 h-1 bg-border-main/80 rounded-full mx-auto mb-4 md:hidden shrink-0" />
         {/* Close Button */}
         <button
           onClick={onClose}
-          className="absolute top-4 right-4 text-text-secondary hover:text-text-primary p-1.5 rounded-lg border border-border-main bg-bg-panel/40 transition cursor-pointer"
+          className="absolute top-4 right-4 text-text-secondary hover:text-text-primary p-1.5 rounded-lg border border-border-main bg-bg-panel/40 transition cursor-pointer btn-interactive"
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -100,7 +102,7 @@ export default function ShareEventModal({ event, onClose }: ShareEventModalProps
               </div>
               <button
                 onClick={handleCopyLink}
-                className="bg-accent-primary hover:bg-accent-hover text-white font-bold text-xs px-4 rounded-xl transition shadow-sm cursor-pointer"
+                className="bg-accent-primary hover:bg-accent-hover text-white font-bold text-xs px-4 rounded-xl transition shadow-sm cursor-pointer btn-interactive"
               >
                 Copy
               </button>
@@ -127,7 +129,7 @@ export default function ShareEventModal({ event, onClose }: ShareEventModalProps
               {qrUrl && (
                 <button
                   onClick={handleDownloadQr}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-accent-primary/10 hover:bg-accent-primary/20 border border-accent-primary/20 hover:border-accent-primary/45 text-accent-primary font-bold text-[10px] transition-colors cursor-pointer"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-accent-primary/10 hover:bg-accent-primary/20 border border-accent-primary/20 hover:border-accent-primary/45 text-accent-primary font-bold text-[10px] transition-colors cursor-pointer btn-interactive"
                 >
                   Download Print PNG
                 </button>
@@ -151,7 +153,7 @@ export default function ShareEventModal({ event, onClose }: ShareEventModalProps
                 <select
                   value={embedLayout}
                   onChange={(e) => setEmbedLayout(e.target.value)}
-                  className="w-full bg-bg-panel-alt border border-border-main rounded-xl py-1.5 px-3 text-text-primary text-[11px] focus:outline-none focus:border-accent-primary cursor-pointer"
+                  className="w-full bg-bg-panel-alt border border-border-main rounded-xl py-1.5 px-3 text-text-primary text-[11px] focus:outline-none input-interactive cursor-pointer"
                 >
                   <option value="" className="bg-bg-panel text-text-primary">Default (Inherit Dashboard)</option>
                   <option value="GRID" className="bg-bg-panel text-text-primary">Grid (grid)</option>
@@ -169,7 +171,7 @@ export default function ShareEventModal({ event, onClose }: ShareEventModalProps
                   min="1"
                   value={embedLimit}
                   onChange={(e) => setEmbedLimit(e.target.value)}
-                  className="w-full bg-bg-panel-alt border border-border-main rounded-xl py-1.5 px-3 text-text-primary placeholder-text-secondary/45 text-[11px] focus:outline-none focus:border-accent-primary font-mono"
+                  className="w-full bg-bg-panel-alt border border-border-main rounded-xl py-1.5 px-3 text-text-primary placeholder-text-secondary/45 text-[11px] focus:outline-none input-interactive font-mono"
                 />
               </div>
             </div>
@@ -179,7 +181,7 @@ export default function ShareEventModal({ event, onClose }: ShareEventModalProps
             </div>
             <button
               onClick={handleCopySnippet}
-              className="w-full bg-bg-panel-alt hover:bg-bg-panel-hover border border-border-main/60 text-text-secondary hover:text-text-primary font-bold py-2 rounded-xl text-xs transition cursor-pointer"
+              className="w-full bg-bg-panel-alt hover:bg-bg-panel-hover border border-border-main/60 text-text-secondary hover:text-text-primary font-bold py-2 rounded-xl text-xs transition cursor-pointer btn-interactive"
             >
               Copy Customized Snippet
             </button>
@@ -189,7 +191,7 @@ export default function ShareEventModal({ event, onClose }: ShareEventModalProps
           <div className="pt-2">
             <button
               onClick={onClose}
-              className="w-full bg-bg-panel-alt hover:bg-bg-panel-hover border border-border-main/60 text-text-primary font-bold py-2.5 rounded-xl text-xs transition cursor-pointer"
+              className="w-full bg-bg-panel-alt hover:bg-bg-panel-hover border border-border-main/60 text-text-primary font-bold py-2.5 rounded-xl text-xs transition cursor-pointer btn-interactive"
             >
               Close Dialog
             </button>

@@ -110,8 +110,9 @@ export default function EditEventModal({ event, onClose }: EditEventModalProps) 
 
       const data = await res.json();
       setEditPosterUrl(data.url);
-    } catch (err: any) {
-      setEditError(err.message || "Error uploading file.");
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Error uploading file.";
+      setEditError(message);
     } finally {
       setEditUploadingPoster(false);
     }
@@ -132,8 +133,9 @@ export default function EditEventModal({ event, onClose }: EditEventModalProps) 
       };
       await editEvent({ id: event.id, payload });
       onClose();
-    } catch (err: any) {
-      setEditError(err.message || "Failed to save changes.");
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to save changes.";
+      setEditError(message);
     }
   };
 
@@ -306,8 +308,10 @@ export default function EditEventModal({ event, onClose }: EditEventModalProps) 
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm transition-all duration-300">
-      <div className="relative w-full max-w-2xl bg-bg-panel border border-border-main rounded-3xl shadow-2xl p-6 overflow-y-auto max-h-[90vh]">
+    <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center p-0 md:p-4 bg-black/60 backdrop-blur-sm animate-backdropFade">
+      <div className="relative w-full md:max-w-2xl bg-bg-panel border-t md:border border-border-main rounded-t-3xl md:rounded-3xl shadow-2xl p-6 overflow-y-auto max-h-[85vh] md:max-h-[90vh] animate-responsiveModal">
+        {/* Mobile Bottom Sheet Grab Handle */}
+        <div className="w-12 h-1 bg-border-main/80 rounded-full mx-auto mb-4 md:hidden shrink-0" />
         {/* Header */}
         <div className="flex justify-between items-center mb-6 pb-4 border-b border-border-main/60">
           <div>
@@ -320,7 +324,7 @@ export default function EditEventModal({ event, onClose }: EditEventModalProps) 
           </div>
           <button
             onClick={onClose}
-            className="text-text-secondary hover:text-text-primary p-1.5 rounded-lg border border-border-main bg-bg-panel/40 transition cursor-pointer"
+            className="text-text-secondary hover:text-text-primary p-1.5 rounded-lg border border-border-main bg-bg-panel/40 transition cursor-pointer btn-interactive"
           >
             ✕
           </button>
@@ -350,7 +354,7 @@ export default function EditEventModal({ event, onClose }: EditEventModalProps) 
                 value={editTitle}
                 onChange={(e) => setEditTitle(e.target.value)}
                 required
-                className="w-full bg-bg-panel-alt border border-border-main rounded-xl px-4 py-2.5 text-sm text-text-primary focus:outline-none focus:border-accent-primary transition"
+                className="w-full bg-bg-panel-alt border border-border-main rounded-xl px-4 py-2.5 text-sm text-text-primary input-interactive focus:outline-none"
               />
             </div>
             <div>
@@ -362,7 +366,7 @@ export default function EditEventModal({ event, onClose }: EditEventModalProps) 
                 value={editDate}
                 onChange={(e) => setEditDate(e.target.value)}
                 required
-                className="w-full bg-bg-panel-alt border border-border-main rounded-xl px-4 py-2.5 text-sm text-text-primary focus:outline-none focus:border-accent-primary transition"
+                className="w-full bg-bg-panel-alt border border-border-main rounded-xl px-4 py-2.5 text-sm text-text-primary input-interactive focus:outline-none"
               />
             </div>
           </div>
@@ -377,7 +381,7 @@ export default function EditEventModal({ event, onClose }: EditEventModalProps) 
                 value={editLocation}
                 onChange={(e) => setEditLocation(e.target.value)}
                 required
-                className="w-full bg-bg-panel-alt border border-border-main rounded-xl px-4 py-2.5 text-sm text-text-primary focus:outline-none focus:border-accent-primary transition"
+                className="w-full bg-bg-panel-alt border border-border-main rounded-xl px-4 py-2.5 text-sm text-text-primary input-interactive focus:outline-none"
               />
             </div>
             <div>
@@ -389,7 +393,7 @@ export default function EditEventModal({ event, onClose }: EditEventModalProps) 
                 placeholder="Leave blank for unlimited"
                 value={editMaxRegistrations}
                 onChange={(e) => setEditMaxRegistrations(e.target.value)}
-                className="w-full bg-bg-panel-alt border border-border-main rounded-xl px-4 py-2.5 text-sm text-text-primary focus:outline-none focus:border-accent-primary transition"
+                className="w-full bg-bg-panel-alt border border-border-main rounded-xl px-4 py-2.5 text-sm text-text-primary input-interactive focus:outline-none"
               />
             </div>
           </div>

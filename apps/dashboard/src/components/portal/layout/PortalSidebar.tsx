@@ -36,31 +36,52 @@ export default function PortalSidebar() {
           </div>
         </div>
 
-        {/* Segmented Layout Switcher for Super-Admin */}
-        {user.role === "SUPER_ADMIN" && (
-          <div className="mb-6 p-1.5 rounded-xl bg-bg-panel-alt border border-border-main flex items-center gap-1 shadow-inner">
+        {/* Segmented Layout Switcher for Organizer / Attendee */}
+        <div className="mb-6 p-1.5 rounded-xl bg-bg-panel-alt border border-border-main flex flex-col gap-1.5 shadow-inner">
+          <div className="flex items-center gap-1">
             <button
-              onClick={() => setViewMode("organizer")}
-              className={`flex-1 py-2 text-center text-xs font-extrabold rounded-lg transition-all duration-200 ${
+              onClick={() => {
+                setViewMode("organizer");
+                setActiveTab("overview");
+              }}
+              className={`flex-1 py-2 text-center text-xs font-extrabold rounded-lg transition-all duration-200 cursor-pointer ${
                 viewMode === "organizer"
                   ? "bg-accent-primary text-white shadow-md shadow-accent-primary/10"
                   : "text-text-secondary hover:text-text-primary"
               }`}
             >
-              Organizer Mode
+              Host Mode
             </button>
             <button
-              onClick={() => setViewMode("system")}
-              className={`flex-1 py-2 text-center text-xs font-extrabold rounded-lg transition-all duration-200 ${
-                viewMode === "system"
-                  ? "bg-purple-600 text-white shadow-md shadow-purple-500/10"
+              onClick={() => {
+                setViewMode("attendee");
+                setActiveTab("my-tickets");
+              }}
+              className={`flex-1 py-2 text-center text-xs font-extrabold rounded-lg transition-all duration-200 cursor-pointer ${
+                viewMode === "attendee"
+                  ? "bg-emerald-600 text-white shadow-md shadow-emerald-550/10"
                   : "text-text-secondary hover:text-text-primary"
               }`}
             >
-              Master Mode
+              Attendee Mode
             </button>
           </div>
-        )}
+          {user.role === "SUPER_ADMIN" && (
+            <button
+              onClick={() => {
+                setViewMode("system");
+                setSystemTab("tenants");
+              }}
+              className={`w-full py-1.5 text-center text-[11px] font-extrabold rounded-lg transition-all duration-200 cursor-pointer ${
+                viewMode === "system"
+                  ? "bg-purple-650 text-white shadow-md shadow-purple-600/10"
+                  : "text-text-secondary hover:text-text-primary border border-purple-500/10"
+              }`}
+            >
+              Master System Director
+            </button>
+          )}
+        </div>
 
         {viewMode === "organizer" ? (
           <nav className="space-y-2">
@@ -116,7 +137,7 @@ export default function PortalSidebar() {
                   }`}
                 >
                   <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
                   </svg>
                   Team Members
                 </button>
@@ -148,6 +169,22 @@ export default function PortalSidebar() {
                 </button>
               </>
             )}
+          </nav>
+        ) : viewMode === "attendee" ? (
+          <nav className="space-y-2">
+            <button
+              onClick={() => setActiveTab("my-tickets")}
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold transition-all duration-200 text-left ${
+                activeTab === "my-tickets"
+                  ? "bg-emerald-600 text-white shadow-md shadow-emerald-500/10"
+                  : "text-text-secondary hover:bg-bg-panel-hover hover:text-text-primary"
+              }`}
+            >
+              <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 5v2m0 4v2m0 4v2M5 5a2 2 0 00-2 2v3a2 2 0 110 4v3a2 2 0 002 2h14a2 2 0 002-2v-3a2 2 0 110-4V7a2 2 0 00-2-2H5z" />
+              </svg>
+              My Tickets
+            </button>
           </nav>
         ) : (
           <nav className="space-y-2">

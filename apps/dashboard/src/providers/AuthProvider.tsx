@@ -19,13 +19,13 @@ interface AuthContextType {
   user: SessionUser | null;
   adminTheme: "dark" | "light";
   activeTab: string;
-  viewMode: "organizer" | "system";
+  viewMode: "organizer" | "system" | "attendee";
   systemTab: "tenants" | "themes";
   authLoading: boolean;
   authError: string | null;
   apiBase: string;
   setActiveTab: (tab: string) => void;
-  setViewMode: (mode: "organizer" | "system") => void;
+  setViewMode: (mode: "organizer" | "system" | "attendee") => void;
   setSystemTab: (tab: "tenants" | "themes") => void;
   toggleAdminTheme: () => void;
   handleLogin: (e: React.FormEvent, emailInput: string, passwordInput: string) => Promise<boolean>;
@@ -43,17 +43,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<SessionUser | null>(null);
   const [adminTheme, setAdminTheme] = useState<"dark" | "light">("dark");
   const [activeTab, setActiveTab] = useState<string>("overview");
-  const [viewMode, setViewMode] = useState<"organizer" | "system">("organizer");
+  const [viewMode, setViewMode] = useState<"organizer" | "system" | "attendee">("organizer");
   const [systemTab, setSystemTab] = useState<"tenants" | "themes">("tenants");
   const [authLoading, setAuthLoading] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
 
+  const [isThemeLoaded, setIsThemeLoaded] = useState(false);
+
   // Sync admin theme class on the <html> element for global CSS variable scoping
   useEffect(() => {
+    if (!isThemeLoaded) return;
     const root = document.documentElement;
     root.classList.remove('light-admin', 'dark-admin');
     root.classList.add(adminTheme === 'light' ? 'light-admin' : 'dark-admin');
-  }, [adminTheme]);
+  }, [adminTheme, isThemeLoaded]);
 
   // Sync token, user, and theme preference from localStorage on mount
   useEffect(() => {
@@ -73,6 +76,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (savedTheme === "light" || savedTheme === "dark") {
       setAdminTheme(savedTheme);
     }
+    setIsThemeLoaded(true);
   }, []);
 
   const toggleAdminTheme = useCallback(() => {

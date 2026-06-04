@@ -12,6 +12,7 @@ export default function DeleteEventModal({ event, onClose }: DeleteEventModalPro
   const { deleteEvent, isDeleting } = useEvents();
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [isShaking, setIsShaking] = useState(false);
 
   const handleDeleteSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -19,26 +20,31 @@ export default function DeleteEventModal({ event, onClose }: DeleteEventModalPro
 
     if (deleteConfirmText.trim().toLowerCase() !== event.title.trim().toLowerCase()) {
       setDeleteError("Confirmation text does not match the event title.");
+      setIsShaking(true);
+      setTimeout(() => setIsShaking(false), 350);
       return;
     }
 
     try {
       await deleteEvent(event.id);
       onClose();
-    } catch (err: any) {
-      setDeleteError(err.message || "Failed to delete event.");
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to delete event.";
+      setDeleteError(message);
     }
   };
 
   const isConfirmed = deleteConfirmText.trim().toLowerCase() === event.title.trim().toLowerCase();
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm transition-all duration-300">
-      <div className="relative w-full max-w-md bg-bg-panel border border-border-main rounded-3xl shadow-2xl p-6">
+    <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center p-0 md:p-4 bg-black/60 backdrop-blur-sm animate-backdropFade">
+      <div className={`relative w-full md:max-w-md bg-bg-panel border-t md:border border-border-main rounded-t-3xl md:rounded-3xl shadow-2xl p-6 max-h-[85vh] md:max-h-none overflow-y-auto animate-responsiveModal ${isShaking ? "animate-shake" : ""}`}>
+        {/* Mobile Bottom Sheet Grab Handle */}
+        <div className="w-12 h-1 bg-border-main/80 rounded-full mx-auto mb-4 md:hidden shrink-0" />
         {/* Close Button */}
         <button
           onClick={onClose}
-          className="absolute top-4 right-4 text-text-secondary hover:text-text-primary p-1.5 rounded-lg border border-border-main bg-bg-panel/40 transition cursor-pointer"
+          className="absolute top-4 right-4 text-text-secondary hover:text-text-primary p-1.5 rounded-lg border border-border-main bg-bg-panel/40 transition cursor-pointer btn-interactive"
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -82,12 +88,12 @@ export default function DeleteEventModal({ event, onClose }: DeleteEventModalPro
               value={deleteConfirmText}
               onChange={(e) => setDeleteConfirmText(e.target.value)}
               required
-              className="w-full bg-bg-panel-alt border border-border-main rounded-xl px-4 py-2.5 text-sm text-text-primary placeholder-text-secondary/45 focus:outline-none focus:border-rose-900/60 focus:ring-1 focus:ring-rose-900/20 transition"
+              className="w-full bg-bg-panel-alt border border-border-main rounded-xl px-4 py-2.5 text-sm text-text-primary placeholder-text-secondary/45 input-interactive focus:outline-none"
             />
           </div>
 
           {deleteError && (
-            <div className="p-3 bg-rose-950/10 border border-rose-900/30 rounded-xl text-xs text-rose-400 font-medium">
+            <div className="p-3 bg-rose-955 bg-rose-950/20 border border-rose-900/30 rounded-xl text-xs text-rose-400 font-medium">
               {deleteError}
             </div>
           )}
@@ -97,14 +103,14 @@ export default function DeleteEventModal({ event, onClose }: DeleteEventModalPro
             <button
               type="button"
               onClick={onClose}
-              className="flex-1 py-2.5 bg-bg-panel-alt hover:bg-bg-panel-hover border border-border-main/60 text-text-secondary hover:text-text-primary rounded-xl text-xs font-bold transition cursor-pointer"
+              className="flex-1 py-2.5 bg-bg-panel-alt hover:bg-bg-panel-hover border border-border-main/60 text-text-secondary hover:text-text-primary rounded-xl text-xs font-bold transition cursor-pointer btn-interactive"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={isDeleting || !isConfirmed}
-              className="flex-1 py-2.5 bg-rose-600 hover:bg-rose-700 disabled:opacity-30 text-white rounded-xl text-xs font-bold transition shadow-md flex justify-center items-center gap-1.5 cursor-pointer disabled:cursor-not-allowed"
+              className="flex-1 py-2.5 bg-rose-600 hover:bg-rose-700 disabled:opacity-30 text-white rounded-xl text-xs font-bold transition shadow-md flex justify-center items-center gap-1.5 cursor-pointer disabled:cursor-not-allowed btn-interactive"
             >
               {isDeleting ? "Deleting..." : "Permanently Delete"}
             </button>
