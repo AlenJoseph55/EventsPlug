@@ -65,4 +65,30 @@ export class RegistrationsService {
       },
     });
   }
+
+  async getRegistrationsByEmail(email: string) {
+    return this.prisma.$queryRaw`
+      SELECT 
+        r.id,
+        r."eventId",
+        r.answers,
+        r."createdAt",
+        e.title as "eventTitle",
+        e.date as "eventDate",
+        e.location as "eventLocation",
+        e.slug as "eventSlug",
+        e."posterUrl" as "eventPosterUrl",
+        o.slug as "orgSlug",
+        o.name as "orgName"
+      FROM "Registration" r
+      JOIN "Event" e ON r."eventId" = e.id
+      JOIN "Organization" o ON e."organizationId" = o.id
+      WHERE EXISTS (
+        SELECT 1 
+        FROM jsonb_each_text(r.answers) 
+        WHERE value = ${email}
+      )
+      ORDER BY r."createdAt" DESC;
+    `;
+  }
 }

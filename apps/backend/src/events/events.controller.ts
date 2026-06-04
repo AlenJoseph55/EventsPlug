@@ -408,6 +408,4 @@ export class EventsController {
       orderBy: { order: 'asc' },
     });
   }
-
 }
-
