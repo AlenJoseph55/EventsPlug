@@ -1,0 +1,158 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum EventStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum UserRole {
+  ORGANIZER
+  SUPER_ADMIN
+  ADMIN
+  MANAGER
+  MEMBER
+}
+
+enum OrganizationStatus {
+  ACTIVE
+  SUSPENDED
+}
+
+model Organization {
+  id             String                    @id @default(uuid())
+  slug           String                    @unique
+  name           String
+  logoUrl        String?
+  status         OrganizationStatus        @default(ACTIVE)
+  defaultThemeId String?
+  defaultTheme   WidgetTheme?              @relation("OrgDefaultTheme", fields: [defaultThemeId], references: [id], onDelete: SetNull)
+  defaultLayout  WidgetLayout              @default(GRID)
+  defaultLimit   Int?
+  
+  // Customization fields for the standalone hub directory page
+  hubTitle         String                    @default("Events Registry")
+  hubDescription   String                    @default("Welcome to our hub registry. Click on any active listing deck below to register for upcoming sessions and matches.")
+  hubLogoUrl       String?
+  hubIcon          String                    @default("🏫")
+  showCardDate     Boolean                   @default(true)
+  showCardLocation Boolean                 @default(true)
+  showCardCapacity Boolean                 @default(true)
+  hubLayout        WidgetLayout              @default(GRID)
+  hubThemeId       String?
+  hubTheme         WidgetTheme?              @relation("OrgHubTheme", fields: [hubThemeId], references: [id], onDelete: SetNull)
+  hubAccentColor   String?
+  hubBgColor       String?
+  hubBannerUrl     String?
+  hubThemeStyle    String                    @default("DOT_MATRIX")
+  autoFitImages    Boolean                   @default(true)
+
+  createdAt      DateTime                  @default(now())
+  updatedAt      DateTime                  @updatedAt
+  events         Event[]
+  users          User[]
+  unlocks        OrganizationThemeUnlock[]
+}
+
+model User {
+  id             String       @id @default(uuid())
+  email          String       @unique
+  passwordHash   String
+  role           UserRole     @default(ORGANIZER)
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+}
+
+model Event {
+  id               String         @id @default(uuid())
+  organizationId   String
+  organization     Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  title            String
+  slug             String
+  description      String
+  date             DateTime
+  location         String
+  posterUrl        String?
+  maxRegistrations Int?
+  status           EventStatus    @default(ACTIVE)
+  formFields       FormField[]    // Dynamically customizable field definitions
+  themeId          String?
+  theme            WidgetTheme?   @relation("EventThemeOverride", fields: [themeId], references: [id], onDelete: SetNull)
+  autoFitImage     Boolean?
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+  registrations    Registration[]
+
+  @@unique([organizationId, slug])
+}
+
+enum FieldType {
+  TEXT
+  EMAIL
+  TEXTAREA
+  SELECT
+  CHECKBOX
+  NUMBER
+}
+
+model FormField {
+  id          String    @id @default(uuid())
+  eventId     String
+  event       Event     @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  type        FieldType
+  label       String
+  placeholder String?
+  required    Boolean   @default(false)
+  options     Json?     @default("[]") // Portable dropdown list: string[]
+  order       Int       @default(0)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model Registration {
+  id        String   @id @default(uuid())
+  eventId   String
+  event     Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  answers   Json     // Form submission JSON, e.g. { "field-uuid-1": "Bob" }
+  createdAt DateTime @default(now())
+}
+
+model WidgetTheme {
+  id             String                   @id @default(uuid())
+  name           String
+  slug           String                   @unique
+  isPremium      Boolean                  @default(false)
+  price          Int                      @default(0) // Integer cents (e.g., 999 = $9.99)
+  cssVariables   Json                     // Strict contract: ThemeCSSVariables structure
+  createdAt      DateTime                 @default(now())
+  updatedAt      DateTime                 @updatedAt
+  orgDefaults    Organization[]           @relation("OrgDefaultTheme")
+  hubOrgDefaults Organization[]           @relation("OrgHubTheme")
+  eventOverrides Event[]                  @relation("EventThemeOverride")
+  unlocks        OrganizationThemeUnlock[]
+}
+
+model OrganizationThemeUnlock {
+  id             String       @id @default(uuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  themeId        String
+  theme          WidgetTheme  @relation(fields: [themeId], references: [id], onDelete: Cascade)
+  purchasedAt    DateTime     @default(now())
+
+  @@unique([organizationId, themeId])
+}
+
+enum WidgetLayout {
+  GRID
+  LIST
+  CAROUSEL
+}
