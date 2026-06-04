@@ -50,3 +50,23 @@ The system SHALL assign a unique, human-readable registration code for every suc
 #### Scenario: Generate Registration ID
 - **WHEN** a registration is successfully processed
 - **THEN** the system generates an ID formatted as: `REG-[EVENT-SLUG-UPPERCASE]-[RANDOM-8-HEX]`
+
+### Requirement: Unified Attendee Ticket Retrieval (B2C2B)
+The system SHALL allow authenticated users to retrieve a consolidated list of their event registrations using their account email address, matching against dynamic JSON field values.
+
+#### Scenario: Retrieve Personal Registrations
+- **WHEN** an authenticated user requests their registered events
+- **THEN** the system queries all registration records and returns those where any value in the custom answers JSON matches the user's account email address.
+
+### Requirement: Dynamic Feed Priority (B2C2B)
+The system SHALL dynamically order the dashboard feed based on user registration count.
+
+#### Scenario: User has Active Tickets
+- **WHEN** a user has one or more RSVP registrations
+- **THEN** the ticket feed is displayed at the top of the portal dashboard.
+
+#### Scenario: User has No Tickets
+- **WHEN** a user has zero RSVP registrations
+- **THEN** the hosted events control decks are prioritized at the top of the portal, and the empty tickets state is collapsed or omitted.
+
+
