@@ -1,8 +1,6 @@
 ## Purpose
 Defines the specifications for creating and managing events, along with customizing their registration forms using a dynamic field builder.
-
 ## Requirements
-
 ### Requirement: Event Management
 Organizers SHALL be able to create, view, update, and delete event listings for their organization.
 
@@ -37,6 +35,10 @@ Organizers SHALL be able to add, edit, and delete custom registration fields for
 - **WHEN** an organizer deletes a custom field
 - **THEN** the field is deleted and registrations are unaffected except that its answers will no longer have field definitions
 
+#### Scenario: Expand Field Properties Animation
+- **WHEN** an organizer opens the inline edit panel for a custom field
+- **THEN** the properties card expands and collapses with a smooth height transition
+
 ### Requirement: Form Presets
 Organizers SHALL be able to apply preset field templates (Individual, Team, Gaming Tournament, Workshop, Hackathon) in APPEND or REPLACE mode.
 
@@ -58,3 +60,8 @@ Organizers SHALL be able to reorder the fields in a form dynamically.
 #### Scenario: Transactional Bulk Reordering
 - **WHEN** an organizer submits a list of custom fields with new order indices
 - **THEN** the system updates the order of all specified fields in a single database transaction
+
+#### Scenario: Drag and Drop Animation Feedback
+- **WHEN** an organizer reorders a form field via drag-and-drop or keyboard shortcuts
+- **THEN** the items in the list translate smoothly to their new coordinates
+
