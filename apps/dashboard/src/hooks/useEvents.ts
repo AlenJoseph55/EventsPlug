@@ -22,7 +22,7 @@ export interface EventData {
   date: string;
   location: string;
   posterUrl?: string;
-  status: "ACTIVE" | "INACTIVE";
+  status: "ACTIVE" | "INACTIVE" | "DRAFT";
   maxRegistrations?: number;
   templatePreset?: string;
   autoFitImage?: boolean | null;
@@ -132,7 +132,7 @@ export function useEvents() {
 
   // 5. Toggle status mutation
   const toggleStatusMutation = useMutation({
-    mutationFn: async ({ id, currentStatus }: { id: string; currentStatus: "ACTIVE" | "INACTIVE" }) => {
+    mutationFn: async ({ id, currentStatus }: { id: string; currentStatus: "ACTIVE" | "INACTIVE" | "DRAFT" }) => {
       const nextStatus = currentStatus === "ACTIVE" ? "INACTIVE" : "ACTIVE";
       const res = await fetch(`${apiBase}/events/${id}`, {
         method: "PATCH",
@@ -214,7 +214,8 @@ export function useEvents() {
         body: JSON.stringify(payload),
       });
       if (!res.ok) {
-        throw new Error("Failed to sync reordered fields.");
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.message || "Failed to sync reordered fields.");
       }
       return true;
     },

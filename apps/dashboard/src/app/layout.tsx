@@ -42,13 +42,16 @@ export default function RootLayout({
             __html: `
               (function() {
                 try {
-                  var isHub = window.location.pathname.indexOf('/o/') !== -1;
+                  var path = window.location.pathname;
+                  var isHub = path.indexOf('/o/') !== -1 || path.indexOf('/e/') !== -1;
                   if (isHub) {
                     var savedHub = localStorage.getItem('eventsplug-hub-theme-preference');
                     if (savedHub === 'light') {
                       document.documentElement.classList.add('light-hub');
+                      document.documentElement.setAttribute('data-hub-theme', 'light');
                     } else {
                       document.documentElement.classList.add('dark-hub');
+                      document.documentElement.setAttribute('data-hub-theme', 'dark');
                     }
                   } else {
                     var savedAdmin = localStorage.getItem('eventsplug-admin-theme-preference');

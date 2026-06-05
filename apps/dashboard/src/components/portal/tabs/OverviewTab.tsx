@@ -150,23 +150,33 @@ export default function OverviewTab({
                         </div>
                       </td>
                       <td className="py-4.5 px-6">
-                        <button
-                          type="button"
-                          onClick={() => toggleEventStatus({ id: evt.id, currentStatus: evt.status || "ACTIVE" })}
-                          className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase transition-all duration-200 cursor-pointer border ${
-                            evt.status === "ACTIVE" || !evt.status
-                              ? "bg-success-bg/40 hover:bg-success-bg/60 text-success-text border-success-border/40"
-                              : "bg-bg-panel hover:bg-bg-panel/80 text-text-secondary border-border-main"
-                          }`}
-                          title="Click to toggle active/inactive status"
-                        >
-                          <span className={`w-1.5 h-1.5 rounded-full ${
-                            evt.status === "ACTIVE" || !evt.status
-                              ? "bg-success-text animate-pulse"
-                              : "bg-text-secondary"
-                          }`} />
-                          {evt.status === "ACTIVE" || !evt.status ? "Active" : "Inactive"}
-                        </button>
+                        {evt.status === "DRAFT" ? (
+                          <div
+                            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase border bg-amber-500/10 border-amber-500/30 text-amber-500"
+                            title="Draft event - Resume setup to publish"
+                          >
+                            <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                            Draft
+                          </div>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => toggleEventStatus({ id: evt.id, currentStatus: evt.status || "ACTIVE" })}
+                            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase transition-all duration-200 cursor-pointer border ${
+                              evt.status === "ACTIVE" || !evt.status
+                                ? "bg-success-bg/40 hover:bg-success-bg/60 text-success-text border-success-border/40"
+                                : "bg-bg-panel hover:bg-bg-panel/80 text-text-secondary border-border-main"
+                            }`}
+                            title="Click to toggle active/inactive status"
+                          >
+                            <span className={`w-1.5 h-1.5 rounded-full ${
+                              evt.status === "ACTIVE" || !evt.status
+                                ? "bg-success-text animate-pulse"
+                                : "bg-text-secondary"
+                            }`} />
+                            {evt.status === "ACTIVE" || !evt.status ? "Active" : "Inactive"}
+                          </button>
+                        )}
                       </td>
                       <td className="py-4.5 px-6 text-text-secondary">{dateStr}</td>
                       <td className="py-4.5 px-6 text-text-secondary">{evt.location}</td>
@@ -185,12 +195,21 @@ export default function OverviewTab({
                       </td>
                       <td className="py-4.5 px-6 text-right">
                         <div className="flex justify-end gap-2 items-center relative">
-                          <button
-                            onClick={() => onViewRegistrations(evt.id)}
-                            className="bg-bg-panel hover:bg-border-main border border-border-main text-text-primary py-1.5 px-3 rounded-lg text-xs font-semibold transition cursor-pointer"
-                          >
-                            View Registrations
-                          </button>
+                          {evt.status === "DRAFT" ? (
+                            <button
+                              onClick={() => onEditEvent(evt)}
+                              className="bg-accent-primary hover:bg-accent-hover border border-accent-primary text-white py-1.5 px-3 rounded-lg text-xs font-semibold transition cursor-pointer animate-pulse"
+                            >
+                              Resume Setup
+                            </button>
+                          ) : (
+                            <button
+                              onClick={() => onViewRegistrations(evt.id)}
+                              className="bg-bg-panel hover:bg-border-main border border-border-main text-text-primary py-1.5 px-3 rounded-lg text-xs font-semibold transition cursor-pointer"
+                            >
+                              View Registrations
+                            </button>
+                          )}
                           
                           <div className="relative">
                             <button

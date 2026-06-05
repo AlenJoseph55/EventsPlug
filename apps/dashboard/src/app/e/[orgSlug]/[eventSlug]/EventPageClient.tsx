@@ -12,17 +12,28 @@ interface EventPageClientProps {
 
 export default function EventPageClient({ event }: EventPageClientProps) {
   const [registeredTicket, setRegisteredTicket] = useState<any>(null);
-  const [themeMode, setThemeMode] = useState<"dark" | "light">("dark");
-  const [mounted, setMounted] = useState(false);
+  const [themeMode, setThemeMode] = useState<"dark" | "light">(() => {
+    // Read from the data attribute set by the blocking script in layout.tsx
+    // This ensures SSR/first-paint matches what the user previously selected
+    if (typeof document !== "undefined") {
+      const attr = document.documentElement.getAttribute("data-hub-theme");
+      if (attr === "light") return "light";
+      if (attr === "dark") return "dark";
+    }
+    return "dark";
+  });
 
   useEffect(() => {
-    setMounted(true);
-    const saved = localStorage.getItem("eventsplug-hub-theme-preference");
-    if (saved === "dark" || saved === "light") {
-      setThemeMode(saved);
-    } else {
-      const prefersLight = window.matchMedia("(prefers-color-scheme: light)").matches;
-      setThemeMode(prefersLight ? "light" : "dark");
+    // If no blocking script attribute was set, check localStorage / system preference
+    const attr = document.documentElement.getAttribute("data-hub-theme");
+    if (!attr) {
+      const saved = localStorage.getItem("eventsplug-hub-theme-preference");
+      if (saved === "dark" || saved === "light") {
+        setThemeMode(saved);
+      } else {
+        const prefersLight = window.matchMedia("(prefers-color-scheme: light)").matches;
+        setThemeMode(prefersLight ? "light" : "dark");
+      }
     }
   }, []);
 
@@ -30,6 +41,10 @@ export default function EventPageClient({ event }: EventPageClientProps) {
     const newMode = themeMode === "dark" ? "light" : "dark";
     setThemeMode(newMode);
     localStorage.setItem("eventsplug-hub-theme-preference", newMode);
+    const root = document.documentElement;
+    root.classList.remove("light-hub", "dark-hub");
+    root.classList.add(newMode === "light" ? "light-hub" : "dark-hub");
+    root.setAttribute("data-hub-theme", newMode);
   };
 
   const selTheme = event.theme || event.organization.hubTheme || event.organization.defaultTheme || {
@@ -45,7 +60,7 @@ export default function EventPageClient({ event }: EventPageClientProps) {
   const primaryColor = event.theme ? (variables["--primary-color"] || "#6366f1") : (event.organization.hubAccentColor || variables["--primary-color"] || "#6366f1");
 
   // Determine active mode colors
-  const isLight = mounted && themeMode === "light";
+  const isLight = themeMode === "light";
   const bgColor = isLight ? "#f8fafc" : (event.theme ? (variables["--bg-color"] || "#090d16") : (event.organization.hubBgColor || variables["--bg-color"] || "#090d16"));
 
   // If a custom background is set, or theme uses default solid gray backgrounds, use an adaptive transparent overlay so card tints with bgColor

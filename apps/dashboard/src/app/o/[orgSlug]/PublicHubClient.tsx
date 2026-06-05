@@ -48,17 +48,25 @@ interface PublicHubClientProps {
 }
 
 export default function PublicHubClient({ organization, events }: PublicHubClientProps) {
-  const [themeMode, setThemeMode] = useState<"dark" | "light">("dark");
-  const [mounted, setMounted] = useState(false);
+  const [themeMode, setThemeMode] = useState<"dark" | "light">(() => {
+    if (typeof document !== "undefined") {
+      const attr = document.documentElement.getAttribute("data-hub-theme");
+      if (attr === "light") return "light";
+      if (attr === "dark") return "dark";
+    }
+    return "dark";
+  });
 
   useEffect(() => {
-    setMounted(true);
-    const saved = localStorage.getItem("eventsplug-hub-theme-preference");
-    if (saved === "dark" || saved === "light") {
-      setThemeMode(saved);
-      document.documentElement.classList.add(`${saved}-hub`);
-    } else {
-      document.documentElement.classList.add("dark-hub");
+    // Ensure the hub class is present (the blocking script in layout.tsx should
+    // have already added it, but this is a safety net for edge cases)
+    const root = document.documentElement;
+    if (!root.classList.contains("light-hub") && !root.classList.contains("dark-hub")) {
+      const saved = localStorage.getItem("eventsplug-hub-theme-preference");
+      const mode = saved === "light" ? "light" : "dark";
+      setThemeMode(mode);
+      root.classList.add(mode === "light" ? "light-hub" : "dark-hub");
+      root.setAttribute("data-hub-theme", mode);
     }
   }, []);
 
@@ -70,6 +78,7 @@ export default function PublicHubClient({ organization, events }: PublicHubClien
     const root = document.documentElement;
     root.classList.remove("light-hub", "dark-hub");
     root.classList.add(newMode === "light" ? "light-hub" : "dark-hub");
+    root.setAttribute("data-hub-theme", newMode);
   };
 
   // Resolve base CSS themes from organization settings

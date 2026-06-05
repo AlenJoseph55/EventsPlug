@@ -103,10 +103,64 @@ export default function RegistrationForm({
     color: "#ffffff",
   };
 
-  const isColorDark = (color?: string) => {
+  const isColorDark = (color?: string): boolean => {
     if (!color) return true;
-    if (color.startsWith("#")) {
-      const hex = color.replace("#", "");
+
+    // Resolve CSS variable if possible
+    let resolvedColor = color;
+    if (color.startsWith("var(") && typeof window !== "undefined") {
+      const varName = color.slice(4, -1).trim();
+      resolvedColor =
+        window.getComputedStyle(document.documentElement).getPropertyValue(varName).trim() ||
+        window.getComputedStyle(document.body).getPropertyValue(varName).trim() ||
+        color;
+    }
+
+    if (resolvedColor.startsWith("var(")) {
+      if (typeof window !== "undefined") {
+        if (document.documentElement.classList.contains("light-admin")) return false;
+      }
+      if (
+        textColor &&
+        (textColor.includes("16%") ||
+          textColor === "#111827" ||
+          textColor === "#1f2937" ||
+          textColor === "#1a1f2e")
+      ) {
+        return false;
+      }
+      return true;
+    }
+
+    // Try canvas-based parsing for any valid CSS color
+    if (typeof window !== "undefined") {
+      try {
+        const canvas = document.createElement("canvas");
+        canvas.width = canvas.height = 1;
+        const ctx = canvas.getContext("2d");
+        if (ctx) {
+          ctx.fillStyle = resolvedColor;
+          ctx.fillRect(0, 0, 1, 1);
+          const [r, g, b, a] = ctx.getImageData(0, 0, 1, 1).data;
+
+          // If the background is mostly transparent (alpha < 0.2), we check the textColor's brightness
+          if (a < 51) {
+            if (textColor) {
+              const isTextDark = isColorDark(textColor);
+              return !isTextDark;
+            }
+            return true;
+          }
+          // Perceived luminance formula
+          return (0.299 * r + 0.587 * g + 0.114 * b) / 255 < 0.5;
+        }
+      } catch (e) {
+        // Fall back to hex parsing below
+      }
+    }
+
+    if (resolvedColor.startsWith("#")) {
+      const hex = resolvedColor.replace("#", "");
       if (hex.length === 3) {
         const r = parseInt(hex[0] + hex[0], 16);
         const g = parseInt(hex[1] + hex[1], 16);
@@ -152,7 +206,7 @@ export default function RegistrationForm({
               {!isCheckbox && (
                 <label 
                   style={{ color: textColor }}
-                  className="block text-[10px] font-extrabold uppercase tracking-wide opacity-80 select-none"
+                  className="block text-xs font-bold uppercase tracking-wide opacity-90 select-none"
                 >
                   {field.label} {field.required && <span className="text-red-500">*</span>}
                 </label>
@@ -168,7 +222,7 @@ export default function RegistrationForm({
                   value={answers[field.id] || ""}
                   onChange={(e) => handleInputChange(field.id, e.target.value)}
                   style={inputStyles}
-                  className="w-full border rounded-xl px-3.5 py-2.5 text-xs placeholder:text-current placeholder:opacity-40 focus:outline-none focus:border-slate-700 transition-colors"
+                  className="w-full border rounded-xl px-4 py-2.5 text-sm placeholder:text-current placeholder:opacity-40 focus:outline-none focus:border-slate-700 transition-colors"
                 />
               )}
 
@@ -182,7 +236,7 @@ export default function RegistrationForm({
                   value={answers[field.id] || ""}
                   onChange={(e) => handleInputChange(field.id, e.target.value)}
                   style={inputStyles}
-                  className="w-full border rounded-xl px-3.5 py-2.5 text-xs placeholder:text-current placeholder:opacity-40 focus:outline-none focus:border-slate-700 transition-colors"
+                  className="w-full border rounded-xl px-4 py-2.5 text-sm placeholder:text-current placeholder:opacity-40 focus:outline-none focus:border-slate-700 transition-colors"
                 />
               )}
 
@@ -196,7 +250,7 @@ export default function RegistrationForm({
                   value={answers[field.id] || ""}
                   onChange={(e) => handleInputChange(field.id, e.target.value)}
                   style={inputStyles}
-                  className="w-full border rounded-xl px-3.5 py-2.5 text-xs placeholder:text-current placeholder:opacity-40 focus:outline-none focus:border-slate-700 transition-colors"
+                  className="w-full border rounded-xl px-4 py-2.5 text-sm placeholder:text-current placeholder:opacity-40 focus:outline-none focus:border-slate-700 transition-colors"
                 />
               )}
 
@@ -210,7 +264,7 @@ export default function RegistrationForm({
                   value={answers[field.id] || ""}
                   onChange={(e) => handleInputChange(field.id, e.target.value)}
                   style={inputStyles}
-                  className="w-full border rounded-xl px-3.5 py-2.5 text-xs placeholder:text-current placeholder:opacity-40 focus:outline-none focus:border-slate-700 transition-colors resize-none"
+                  className="w-full border rounded-xl px-4 py-2.5 text-sm placeholder:text-current placeholder:opacity-40 focus:outline-none focus:border-slate-700 transition-colors resize-none"
                 />
               )}
 
@@ -234,7 +288,7 @@ export default function RegistrationForm({
                     value={answers[field.id] || ""}
                     onChange={(e) => handleInputChange(field.id, e.target.value)}
                     style={inputStyles}
-                    className="w-full border rounded-xl px-3.5 py-2.5 text-xs focus:outline-none focus:border-slate-700 transition-colors appearance-none cursor-pointer"
+                    className="w-full border rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-slate-700 transition-colors appearance-none cursor-pointer"
                   >
                     <option 
                       value="" 
@@ -289,7 +343,7 @@ export default function RegistrationForm({
         type="submit"
         style={primaryStyles}
         disabled={preview || loading}
-        className={`w-full text-xs font-extrabold py-3 px-4 rounded-xl shadow-lg transition-transform active:scale-[0.98] select-none text-center ${
+        className={`w-full text-sm font-extrabold py-3 px-4 rounded-xl shadow-lg transition-transform active:scale-[0.98] select-none text-center ${
           preview ? "cursor-default opacity-90" : "cursor-pointer hover:opacity-95"
         }`}
       >
