@@ -187,6 +187,44 @@ export class EventsController {
     });
   }
 
+  // 12. Protected Endpoint - Transactional Bulk Reordering
+  // IMPORTANT: Must be declared BEFORE fields/:id so NestJS doesn't match "reorder" as a field ID
+  @UseGuards(AuthGuard('jwt'), ActiveOrgGuard, RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.SUPER_ADMIN)
+  @Patch('events/:eventId/fields/reorder')
+  async reorderFields(
+    @Req() req: any,
+    @Param('eventId') eventId: string,
+    @Body() dto: { id: string; order: number }[],
+  ) {
+    // IDOR protection
+    const event = await this.prisma.event.findFirst({
+      where: { id: eventId, organizationId: req.user.organizationId },
+    });
+
+    if (!event) {
+      throw new NotFoundException('Event not found or access denied');
+    }
+
+    if (!Array.isArray(dto)) {
+      throw new BadRequestException(
+        'Payload must be an array of { id, order }',
+      );
+    }
+
+    // Execute bulk reorders inside a secure Prisma Transaction block
+    await this.prisma.$transaction(
+      dto.map((item) =>
+        this.prisma.formField.updateMany({
+          where: { id: item.id, eventId },
+          data: { order: Number(item.order) },
+        }),
+      ),
+    );
+
+    return { success: true };
+  }
+
   // 10. Protected Endpoint - Edit an Individual Field (Checks ownership)
   @UseGuards(AuthGuard('jwt'), ActiveOrgGuard, RolesGuard)
   @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.SUPER_ADMIN)
@@ -294,43 +332,6 @@ export class EventsController {
     return this.prisma.formField.delete({
       where: { id: fieldId },
     });
-  }
-
-  // 12. Protected Endpoint - Transactional Bulk Reordering
-  @UseGuards(AuthGuard('jwt'), ActiveOrgGuard, RolesGuard)
-  @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.SUPER_ADMIN)
-  @Patch('events/:eventId/fields/reorder')
-  async reorderFields(
-    @Req() req: any,
-    @Param('eventId') eventId: string,
-    @Body() dto: { id: string; order: number }[],
-  ) {
-    // IDOR protection
-    const event = await this.prisma.event.findFirst({
-      where: { id: eventId, organizationId: req.user.organizationId },
-    });
-
-    if (!event) {
-      throw new NotFoundException('Event not found or access denied');
-    }
-
-    if (!Array.isArray(dto)) {
-      throw new BadRequestException(
-        'Payload must be an array of { id, order }',
-      );
-    }
-
-    // Execute bulk reorders inside a secure Prisma Transaction block
-    await this.prisma.$transaction(
-      dto.map((item) =>
-        this.prisma.formField.updateMany({
-          where: { id: item.id, eventId },
-          data: { order: Number(item.order) },
-        }),
-      ),
-    );
-
-    return { success: true };
   }
 
   // 13. Protected Endpoint - Bulk Apply Preset fields (APPEND or REPLACE)

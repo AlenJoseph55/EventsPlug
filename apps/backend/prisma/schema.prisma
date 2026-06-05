@@ -10,6 +10,7 @@ generator client {
 enum EventStatus {
   ACTIVE
   INACTIVE
+  DRAFT
 }
 
 enum UserRole {

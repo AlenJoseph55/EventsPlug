@@ -118,6 +118,7 @@ export class EventsService {
         maxRegistrations: dto.maxRegistrations
           ? Number(dto.maxRegistrations)
           : null,
+        status: EventStatus.DRAFT,
         autoFitImage: dto.autoFitImage !== undefined ? dto.autoFitImage : null,
         formFields: {
           create: fieldsData,
@@ -295,7 +296,7 @@ export class EventsService {
       },
     });
 
-    if (!event) {
+    if (!event || event.status !== EventStatus.ACTIVE) {
       throw new NotFoundException('Event not found');
     }
 
