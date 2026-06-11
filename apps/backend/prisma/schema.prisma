@@ -34,6 +34,8 @@ model Organization {
   status         OrganizationStatus        @default(ACTIVE)
   defaultThemeId String?
   defaultTheme   WidgetTheme?              @relation("OrgDefaultTheme", fields: [defaultThemeId], references: [id], onDelete: SetNull)
+  defaultSkinId  String?
+  defaultSkin    WidgetSkin?               @relation("OrgDefaultSkin", fields: [defaultSkinId], references: [id], onDelete: SetNull)
   defaultLayout  WidgetLayout              @default(GRID)
   defaultLimit   Int?
   
@@ -48,8 +50,8 @@ model Organization {
   hubLayout        WidgetLayout              @default(GRID)
   hubThemeId       String?
   hubTheme         WidgetTheme?              @relation("OrgHubTheme", fields: [hubThemeId], references: [id], onDelete: SetNull)
-  hubAccentColor   String?
-  hubBgColor       String?
+  hubSkinId        String?
+  hubSkin          WidgetSkin?               @relation("OrgHubSkin", fields: [hubSkinId], references: [id], onDelete: SetNull)
   hubBannerUrl     String?
   hubThemeStyle    String                    @default("DOT_MATRIX")
   autoFitImages    Boolean                   @default(true)
@@ -87,6 +89,8 @@ model Event {
   formFields       FormField[]    // Dynamically customizable field definitions
   themeId          String?
   theme            WidgetTheme?   @relation("EventThemeOverride", fields: [themeId], references: [id], onDelete: SetNull)
+  skinId           String?
+  skin             WidgetSkin?    @relation("EventSkinOverride", fields: [skinId], references: [id], onDelete: SetNull)
   autoFitImage     Boolean?
   createdAt        DateTime       @default(now())
   updatedAt        DateTime       @updatedAt
@@ -132,7 +136,13 @@ model WidgetTheme {
   slug           String                   @unique
   isPremium      Boolean                  @default(false)
   price          Int                      @default(0) // Integer cents (e.g., 999 = $9.99)
-  cssVariables   Json                     // Strict contract: ThemeCSSVariables structure
+  baseMode       String?                  @default("dark")
+  accentHue      Int?                     @default(221)
+  accentChroma   Float?                   @default(0.28)
+  surfaceTone    String?                  @default("deep")
+  skinId         String?                  @default("frosted")
+  fontPairingId  String?                  @default("inter-mono")
+  cssVariables   Json?                    // Deprecated: legacy CSS variables fallback
   createdAt      DateTime                 @default(now())
   updatedAt      DateTime                 @updatedAt
   orgDefaults    Organization[]           @relation("OrgDefaultTheme")
@@ -150,6 +160,23 @@ model OrganizationThemeUnlock {
   purchasedAt    DateTime     @default(now())
 
   @@unique([organizationId, themeId])
+}
+
+model WidgetSkin {
+  id             String         @id @default(uuid())
+  name           String
+  slug           String         @unique
+  borderRadius   String         // e.g. "0px", "8px", "16px", "24px"
+  borderStyle    String         // e.g. "solid", "none", "double"
+  borderWidth    String         // e.g. "1px", "2px"
+  shadowStyle    String         // e.g. "none", "brutalist", "frosted"
+  fontFamily     String         // e.g. "var(--font-sans)", "var(--font-display)"
+  backdropStyle  String         // e.g. "DOT_MATRIX", "GRID_WARP", "AURORA_GLOW"
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  orgDefaults    Organization[] @relation("OrgDefaultSkin")
+  hubOrgDefaults Organization[] @relation("OrgHubSkin")
+  eventOverrides Event[]        @relation("EventSkinOverride")
 }
 
 enum WidgetLayout {

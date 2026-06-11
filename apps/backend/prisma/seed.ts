@@ -6,74 +6,55 @@ const prisma = new PrismaClient();
 async function main() {
   console.log('Seeding database...');
 
-  // 1. Create default organization
-  const org = await prisma.organization.upsert({
-    where: { slug: 'hash2025' },
-    update: {},
-    create: {
-      slug: 'hash2025',
-      name: 'Hash College Community',
-      logoUrl: 'https://images.unsplash.com/photo-1517245386807-bb43f82c33c4?auto=format&fit=crop&w=200&q=80',
-    },
-  });
-  console.log(`Organization created/found: ${org.name} (${org.slug})`);
-
-  // 1b. Create system operators organization
-  const systemOrg = await prisma.organization.upsert({
-    where: { slug: 'system' },
-    update: {},
-    create: {
-      slug: 'system',
-      name: 'System Operators',
-      logoUrl: 'https://images.unsplash.com/photo-1551434678-e076c223a692?auto=format&fit=crop&w=200&q=80',
-    },
-  });
-  console.log(`System Organization created/found: ${systemOrg.name} (${systemOrg.slug})`);
-
-  // 1c. Seed global widget themes
+  // 1. Seed global widget themes
   const themesData = [
     {
       slug: 'magic-adaptive',
       name: '🔮 Magic Adaptive',
       isPremium: false,
       price: 0,
-      cssVariables: {},
+      baseMode: 'auto',
+      accentHue: 250,
+      accentChroma: 0.18,
+      surfaceTone: 'soft',
+      skinId: 'frosted',
+      fontPairingId: 'inter-inter',
     },
     {
       slug: 'midnight',
       name: 'Midnight',
       isPremium: false,
       price: 0,
-      cssVariables: {
-        '--primary-color': '#6366f1',
-        '--bg-color': '#0d1321',
-        '--text-color': '#f8fafc',
-        '--card-bg': '#1e293b',
-      },
+      baseMode: 'dark',
+      accentHue: 235,
+      accentChroma: 0.20,
+      surfaceTone: 'deep',
+      skinId: 'frosted',
+      fontPairingId: 'inter-inter',
     },
     {
       slug: 'light-minimal',
       name: 'Light Minimal',
       isPremium: false,
       price: 0,
-      cssVariables: {
-        '--primary-color': '#0f172a',
-        '--bg-color': '#f8fafc',
-        '--text-color': '#0f172a',
-        '--card-bg': '#ffffff',
-      },
+      baseMode: 'light',
+      accentHue: 220,
+      accentChroma: 0.12,
+      surfaceTone: 'soft',
+      skinId: 'soft',
+      fontPairingId: 'inter-inter',
     },
     {
       slug: 'neon-pulse',
       name: 'Neon Pulse',
       isPremium: false,
       price: 0,
-      cssVariables: {
-        '--primary-color': '#ff007f',
-        '--bg-color': '#05010d',
-        '--text-color': '#00ffcc',
-        '--card-bg': '#140c24',
-      },
+      baseMode: 'dark',
+      accentHue: 330,
+      accentChroma: 0.28,
+      surfaceTone: 'tinted',
+      skinId: 'retro',
+      fontPairingId: 'fira-inter',
     },
   ];
 
@@ -94,18 +75,150 @@ async function main() {
         name: t.name,
         isPremium: t.isPremium,
         price: t.price,
-        cssVariables: t.cssVariables,
+        baseMode: t.baseMode,
+        accentHue: t.accentHue,
+        accentChroma: t.accentChroma,
+        surfaceTone: t.surfaceTone,
+        skinId: t.skinId,
+        fontPairingId: t.fontPairingId,
       },
       create: {
         slug: t.slug,
         name: t.name,
         isPremium: t.isPremium,
         price: t.price,
-        cssVariables: t.cssVariables,
+        baseMode: t.baseMode,
+        accentHue: t.accentHue,
+        accentChroma: t.accentChroma,
+        surfaceTone: t.surfaceTone,
+        skinId: t.skinId,
+        fontPairingId: t.fontPairingId,
       },
     });
     console.log(`Theme seeded: ${theme.name} (${theme.slug})`);
   }
+
+  // 2. Seed global widget skins
+  const skinsData = [
+    {
+      slug: 'frosted',
+      name: 'Frosted Glass',
+      borderRadius: '16px',
+      borderStyle: 'solid',
+      borderWidth: '1px',
+      shadowStyle: 'frosted',
+      fontFamily: 'var(--font-sans)',
+      backdropStyle: 'AURORA_GLOW',
+    },
+    {
+      slug: 'sharp',
+      name: 'Brutalist Bold',
+      borderRadius: '0px',
+      borderStyle: 'solid',
+      borderWidth: '2.5px',
+      shadowStyle: 'brutalist',
+      fontFamily: 'var(--font-display)',
+      backdropStyle: 'DOT_MATRIX',
+    },
+    {
+      slug: 'soft',
+      name: 'Minimalist Soft',
+      borderRadius: '24px',
+      borderStyle: 'none',
+      borderWidth: '0px',
+      shadowStyle: 'soft',
+      fontFamily: 'var(--font-sans)',
+      backdropStyle: 'AURORA_GLOW',
+    },
+    {
+      slug: 'retro',
+      name: 'Retro Cyber',
+      borderRadius: '4px',
+      borderStyle: 'solid',
+      borderWidth: '1px',
+      shadowStyle: 'glow',
+      fontFamily: 'var(--font-mono)',
+      backdropStyle: 'GRID_WARP',
+    },
+  ];
+
+  console.log('Cleaning existing skins...');
+  await prisma.widgetSkin.deleteMany({
+    where: {
+      slug: {
+        notIn: ['frosted', 'sharp', 'soft', 'retro'],
+      },
+    },
+  });
+
+  console.log('Seeding global widget skins...');
+  for (const s of skinsData) {
+    const skin = await prisma.widgetSkin.upsert({
+      where: { slug: s.slug },
+      update: {
+        name: s.name,
+        borderRadius: s.borderRadius,
+        borderStyle: s.borderStyle,
+        borderWidth: s.borderWidth,
+        shadowStyle: s.shadowStyle,
+        fontFamily: s.fontFamily,
+        backdropStyle: s.backdropStyle,
+      },
+      create: {
+        slug: s.slug,
+        name: s.name,
+        borderRadius: s.borderRadius,
+        borderStyle: s.borderStyle,
+        borderWidth: s.borderWidth,
+        shadowStyle: s.shadowStyle,
+        fontFamily: s.fontFamily,
+        backdropStyle: s.backdropStyle,
+      },
+    });
+    console.log(`Skin seeded: ${skin.name} (${skin.slug})`);
+  }
+
+  // Get defaults to link to organization
+  const defaultTheme = await prisma.widgetTheme.findUnique({ where: { slug: 'magic-adaptive' } });
+  const defaultSkin = await prisma.widgetSkin.findUnique({ where: { slug: 'frosted' } });
+
+  // 3. Create default organization
+  const org = await prisma.organization.upsert({
+    where: { slug: 'hash2025' },
+    update: {
+      defaultThemeId: defaultTheme?.id,
+      hubThemeId: defaultTheme?.id,
+      hubSkinId: defaultSkin?.id,
+    },
+    create: {
+      slug: 'hash2025',
+      name: 'Hash College Community',
+      logoUrl: 'https://images.unsplash.com/photo-1517245386807-bb43f82c33c4?auto=format&fit=crop&w=200&q=80',
+      defaultThemeId: defaultTheme?.id,
+      hubThemeId: defaultTheme?.id,
+      hubSkinId: defaultSkin?.id,
+    },
+  });
+  console.log(`Organization created/found: ${org.name} (${org.slug})`);
+
+  // 3b. Create system operators organization
+  const systemOrg = await prisma.organization.upsert({
+    where: { slug: 'system' },
+    update: {
+      defaultThemeId: defaultTheme?.id,
+      hubThemeId: defaultTheme?.id,
+      hubSkinId: defaultSkin?.id,
+    },
+    create: {
+      slug: 'system',
+      name: 'System Operators',
+      logoUrl: 'https://images.unsplash.com/photo-1551434678-e076c223a692?auto=format&fit=crop&w=200&q=80',
+      defaultThemeId: defaultTheme?.id,
+      hubThemeId: defaultTheme?.id,
+      hubSkinId: defaultSkin?.id,
+    },
+  });
+  console.log(`System Organization created/found: ${systemOrg.name} (${systemOrg.slug})`);
 
   // 2. Create default organizer user
   const passwordHash = await bcrypt.hash('password123', 10);

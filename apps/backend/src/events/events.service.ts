@@ -138,6 +138,8 @@ export class EventsService {
       include: {
         defaultTheme: true,
         hubTheme: true,
+        defaultSkin: true,
+        hubSkin: true,
       },
     });
 
@@ -157,6 +159,7 @@ export class EventsService {
           orderBy: { order: 'asc' },
         },
         theme: true,
+        skin: true,
         _count: {
           select: { registrations: true },
         },
@@ -207,6 +210,9 @@ export class EventsService {
     if (dto.autoFitImage !== undefined) {
       updateData.autoFitImage =
         dto.autoFitImage === null ? null : !!dto.autoFitImage;
+    }
+    if (dto.skinId !== undefined) {
+      updateData.skinId = dto.skinId;
     }
 
     // 3. Handle title modifications and regeneration of slugs
@@ -284,10 +290,13 @@ export class EventsService {
           orderBy: { order: 'asc' },
         },
         theme: true,
+        skin: true,
         organization: {
           include: {
             defaultTheme: true,
             hubTheme: true,
+            defaultSkin: true,
+            hubSkin: true,
           },
         },
         _count: {

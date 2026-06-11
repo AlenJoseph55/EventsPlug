@@ -36,6 +36,14 @@ export class PreferencesController {
     }));
   }
 
+  // 1b. Organizer Endpoint - List all visual skins
+  @Get('skins')
+  async getSkins() {
+    return this.prisma.widgetSkin.findMany({
+      orderBy: { createdAt: 'asc' },
+    });
+  }
+
   // 2. Organizer Endpoint - Set organization-level default theme
   @Patch('organizations/default-theme')
   async updateOrgDefaultTheme(
@@ -156,21 +164,8 @@ export class PreferencesController {
     const orgId = req.user.organizationId;
     const org = await this.prisma.organization.findUnique({
       where: { id: orgId },
-      select: {
-        hubTitle: true,
-        hubDescription: true,
-        hubLogoUrl: true,
-        hubIcon: true,
-        showCardDate: true,
-        showCardLocation: true,
-        showCardCapacity: true,
-        hubLayout: true,
-        hubThemeId: true,
-        hubAccentColor: true,
-        hubBgColor: true,
-        hubBannerUrl: true,
-        hubThemeStyle: true,
-        autoFitImages: true,
+      include: {
+        hubTheme: true,
       },
     });
 
@@ -178,7 +173,28 @@ export class PreferencesController {
       throw new NotFoundException('Organization not found.');
     }
 
-    return org;
+    return {
+      hubTitle: org.hubTitle,
+      hubDescription: org.hubDescription,
+      hubLogoUrl: org.hubLogoUrl,
+      hubIcon: org.hubIcon,
+      showCardDate: org.showCardDate,
+      showCardLocation: org.showCardLocation,
+      showCardCapacity: org.showCardCapacity,
+      hubLayout: org.hubLayout,
+      hubThemeId: org.hubThemeId,
+      hubSkinId: org.hubSkinId,
+      hubBannerUrl: org.hubBannerUrl,
+      hubThemeStyle: org.hubThemeStyle,
+      autoFitImages: org.autoFitImages,
+      // Theme settings derived from active theme
+      baseMode: org.hubTheme?.baseMode,
+      accentHue: org.hubTheme?.accentHue,
+      accentChroma: org.hubTheme?.accentChroma,
+      surfaceTone: org.hubTheme?.surfaceTone,
+      skinId: org.hubTheme?.skinId,
+      fontPairingId: org.hubTheme?.fontPairingId,
+    };
   }
 
   // 6. Organizer Endpoint - Update organization hub customization preferences
@@ -196,11 +212,16 @@ export class PreferencesController {
       showCardCapacity?: boolean;
       hubLayout?: 'GRID' | 'LIST' | 'CAROUSEL';
       hubThemeId?: string | null;
-      hubAccentColor?: string | null;
-      hubBgColor?: string | null;
+      hubSkinId?: string | null;
       hubBannerUrl?: string | null;
       hubThemeStyle?: string;
       autoFitImages?: boolean;
+      baseMode?: string;
+      accentHue?: number;
+      accentChroma?: number;
+      surfaceTone?: string;
+      skinId?: string;
+      fontPairingId?: string;
     },
   ) {
     const orgId = req.user.organizationId;
@@ -232,30 +253,44 @@ export class PreferencesController {
     }
     if (
       body.hubThemeStyle !== undefined &&
-      !['DOT_MATRIX', 'GRID_WARP', 'AURORA_GLOW'].includes(body.hubThemeStyle)
+      !['DOT_MATRIX', 'GRID_WARP', 'AURORA_GLOW', 'LIGHTFALL', 'SIDERAYS', 'LIGHTRAYS', 'AURORA', 'GRADIENT', 'PIXELSNOW', 'SHAPEGRID'].includes(body.hubThemeStyle)
     ) {
       throw new BadRequestException('Invalid hub theme style preference.');
     }
-    if (body.hubAccentColor !== undefined && body.hubAccentColor !== null) {
-      if (typeof body.hubAccentColor !== 'string') {
-        throw new BadRequestException('Hub accent color must be a string.');
+    if (body.hubSkinId !== undefined && body.hubSkinId !== null) {
+      if (typeof body.hubSkinId !== 'string') {
+        throw new BadRequestException('Hub skin ID must be a string.');
       }
-      const hexRegex = /^#[0-9A-Fa-f]{6}$/;
-      if (!hexRegex.test(body.hubAccentColor)) {
-        throw new BadRequestException(
-          'Hub accent color must be a valid hex color code.',
-        );
+      const skin = await this.prisma.widgetSkin.findUnique({
+        where: { id: body.hubSkinId },
+      });
+      if (!skin) {
+        throw new NotFoundException('Skin not found.');
       }
     }
-    if (body.hubBgColor !== undefined && body.hubBgColor !== null) {
-      if (typeof body.hubBgColor !== 'string') {
-        throw new BadRequestException('Hub background color must be a string.');
+    if (body.accentHue !== undefined && body.accentHue !== null) {
+      if (typeof body.accentHue !== 'number' || body.accentHue < 0 || body.accentHue > 360) {
+        throw new BadRequestException('Accent hue must be a number between 0 and 360.');
       }
-      const hexRegex = /^#[0-9A-Fa-f]{6}$/;
-      if (!hexRegex.test(body.hubBgColor)) {
-        throw new BadRequestException(
-          'Hub background color must be a valid hex color code.',
-        );
+    }
+    if (body.accentChroma !== undefined && body.accentChroma !== null) {
+      if (typeof body.accentChroma !== 'number' || body.accentChroma < 0 || body.accentChroma > 1) {
+        throw new BadRequestException('Accent chroma must be a number between 0 and 1.');
+      }
+    }
+    if (body.baseMode !== undefined && body.baseMode !== null) {
+      if (!['dark', 'light', 'auto'].includes(body.baseMode)) {
+        throw new BadRequestException('Invalid baseMode. Allowed: dark, light, auto');
+      }
+    }
+    if (body.surfaceTone !== undefined && body.surfaceTone !== null) {
+      if (!['deep', 'mid', 'soft'].includes(body.surfaceTone)) {
+        throw new BadRequestException('Invalid surfaceTone. Allowed: deep, mid, soft');
+      }
+    }
+    if (body.skinId !== undefined && body.skinId !== null) {
+      if (!['frosted', 'sharp', 'soft', 'retro'].includes(body.skinId)) {
+        throw new BadRequestException('Invalid skinId. Allowed: frosted, sharp, soft, retro');
       }
     }
     if (body.hubBannerUrl !== undefined && body.hubBannerUrl !== null) {
@@ -272,6 +307,93 @@ export class PreferencesController {
       );
     }
 
+    const org = await this.prisma.organization.findUnique({
+      where: { id: orgId },
+      include: { hubTheme: true },
+    });
+
+    if (!org) {
+      throw new NotFoundException('Organization not found.');
+    }
+
+    let targetThemeId = body.hubThemeId !== undefined ? body.hubThemeId : org.hubThemeId;
+    let targetSkinId = body.hubSkinId !== undefined ? body.hubSkinId : org.hubSkinId;
+
+    // Synchronize hubSkinId if skinId is explicitly customized
+    if (body.skinId !== undefined && body.skinId !== null) {
+      const skin = await this.prisma.widgetSkin.findUnique({
+        where: { slug: body.skinId },
+      });
+      if (skin) {
+        targetSkinId = skin.id;
+      }
+    }
+
+    // Check if theme customizations are being sent
+    const hasCustomizationProps =
+      body.baseMode !== undefined ||
+      body.accentHue !== undefined ||
+      body.accentChroma !== undefined ||
+      body.surfaceTone !== undefined ||
+      body.skinId !== undefined ||
+      body.fontPairingId !== undefined;
+
+    if (hasCustomizationProps) {
+      let customTheme = org.hubTheme;
+      const expectedSlug = `org-custom-${orgId}`;
+      
+      if (!customTheme || customTheme.slug !== expectedSlug) {
+        // Create custom theme copy or start with defaults
+        const baseTheme = customTheme || {
+          baseMode: 'dark',
+          accentHue: 250,
+          accentChroma: 0.18,
+          surfaceTone: 'mid',
+          skinId: 'frosted',
+          fontPairingId: 'inter-inter',
+        };
+
+        customTheme = await this.prisma.widgetTheme.upsert({
+          where: { slug: expectedSlug },
+          update: {
+            baseMode: body.baseMode !== undefined ? body.baseMode : baseTheme.baseMode,
+            accentHue: body.accentHue !== undefined ? body.accentHue : baseTheme.accentHue,
+            accentChroma: body.accentChroma !== undefined ? body.accentChroma : baseTheme.accentChroma,
+            surfaceTone: body.surfaceTone !== undefined ? body.surfaceTone : baseTheme.surfaceTone,
+            skinId: body.skinId !== undefined ? body.skinId : baseTheme.skinId,
+            fontPairingId: body.fontPairingId !== undefined ? body.fontPairingId : baseTheme.fontPairingId,
+          },
+          create: {
+            slug: expectedSlug,
+            name: `${org.name} Custom Theme`,
+            isPremium: false,
+            price: 0,
+            baseMode: body.baseMode !== undefined ? body.baseMode : baseTheme.baseMode,
+            accentHue: body.accentHue !== undefined ? body.accentHue : baseTheme.accentHue,
+            accentChroma: body.accentChroma !== undefined ? body.accentChroma : baseTheme.accentChroma,
+            surfaceTone: body.surfaceTone !== undefined ? body.surfaceTone : baseTheme.surfaceTone,
+            skinId: body.skinId !== undefined ? body.skinId : baseTheme.skinId,
+            fontPairingId: body.fontPairingId !== undefined ? body.fontPairingId : baseTheme.fontPairingId,
+          },
+        });
+        targetThemeId = customTheme.id;
+      } else {
+        // Update existing custom theme
+        customTheme = await this.prisma.widgetTheme.update({
+          where: { id: customTheme.id },
+          data: {
+            baseMode: body.baseMode !== undefined ? body.baseMode : undefined,
+            accentHue: body.accentHue !== undefined ? body.accentHue : undefined,
+            accentChroma: body.accentChroma !== undefined ? body.accentChroma : undefined,
+            surfaceTone: body.surfaceTone !== undefined ? body.surfaceTone : undefined,
+            skinId: body.skinId !== undefined ? body.skinId : undefined,
+            fontPairingId: body.fontPairingId !== undefined ? body.fontPairingId : undefined,
+          },
+        });
+        targetThemeId = customTheme.id;
+      }
+    }
+
     const updatedOrg = await this.prisma.organization.update({
       where: { id: orgId },
       data: {
@@ -283,12 +405,14 @@ export class PreferencesController {
         showCardLocation: body.showCardLocation,
         showCardCapacity: body.showCardCapacity,
         hubLayout: body.hubLayout,
-        hubThemeId: body.hubThemeId,
-        hubAccentColor: body.hubAccentColor,
-        hubBgColor: body.hubBgColor,
+        hubThemeId: targetThemeId,
+        hubSkinId: targetSkinId,
         hubBannerUrl: body.hubBannerUrl,
         hubThemeStyle: body.hubThemeStyle,
         autoFitImages: body.autoFitImages,
+      },
+      include: {
+        hubTheme: true,
       },
     });
 
@@ -304,11 +428,16 @@ export class PreferencesController {
         showCardCapacity: updatedOrg.showCardCapacity,
         hubLayout: updatedOrg.hubLayout,
         hubThemeId: updatedOrg.hubThemeId,
-        hubAccentColor: updatedOrg.hubAccentColor,
-        hubBgColor: updatedOrg.hubBgColor,
+        hubSkinId: updatedOrg.hubSkinId,
         hubBannerUrl: updatedOrg.hubBannerUrl,
         hubThemeStyle: updatedOrg.hubThemeStyle,
         autoFitImages: updatedOrg.autoFitImages,
+        baseMode: updatedOrg.hubTheme?.baseMode,
+        accentHue: updatedOrg.hubTheme?.accentHue,
+        accentChroma: updatedOrg.hubTheme?.accentChroma,
+        surfaceTone: updatedOrg.hubTheme?.surfaceTone,
+        skinId: updatedOrg.hubTheme?.skinId,
+        fontPairingId: updatedOrg.hubTheme?.fontPairingId,
       },
     };
   }
