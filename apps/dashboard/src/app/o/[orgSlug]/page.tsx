@@ -3,6 +3,8 @@ import { notFound } from "next/navigation";
 import { fetchPublicOrgEvents } from "@/lib/public-api";
 import PublicHubClient from "./PublicHubClient";
 
+export const dynamic = "force-dynamic";
+
 interface OrgPageProps {
   params: Promise<{
     orgSlug: string;

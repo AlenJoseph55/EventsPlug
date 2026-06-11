@@ -35,7 +35,7 @@ export interface PublicOrgData {
 export async function fetchPublicEvent(orgSlug: string, eventSlug: string) {
   try {
     const res = await fetch(`${API_BASE}/organizations/${orgSlug}/events/${eventSlug}`, {
-      next: { revalidate: 60 },
+      next: { revalidate: 0 },
     });
 
     if (res.status === 403) {
@@ -60,7 +60,7 @@ export async function fetchPublicEvent(orgSlug: string, eventSlug: string) {
 export async function fetchPublicOrgEvents(orgSlug: string): Promise<PublicOrgData | { isSuspended: true } | null> {
   try {
     const res = await fetch(`${API_BASE}/organizations/${orgSlug}/events`, {
-      next: { revalidate: 60 },
+      next: { revalidate: 0 },
     });
 
     if (res.status === 403) {

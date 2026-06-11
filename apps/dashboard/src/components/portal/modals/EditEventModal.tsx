@@ -8,6 +8,7 @@ import { useToast } from "@/providers/ToastProvider";
 import { FORM_TEMPLATES } from "@eventflow/templates";
 import { FormTemplateId } from "@eventflow/types";
 import RegistrationForm from "@/components/RegistrationForm";
+import { useThemes } from "@/hooks/useThemes";
 
 interface EditEventModalProps {
   event: EventData;
@@ -30,6 +31,8 @@ export default function EditEventModal({ event, onClose }: EditEventModalProps) 
     saveField,
   } = useEvents();
 
+  const { skins } = useThemes();
+
   // Basic Details Form States
   const [editTitle, setEditTitle] = useState(event.title);
   const [editDescription, setEditDescription] = useState(event.description);
@@ -41,6 +44,7 @@ export default function EditEventModal({ event, onClose }: EditEventModalProps) 
   const [editAutoFitImage, setEditAutoFitImage] = useState(
     event.autoFitImage === null ? "inherit" : String(event.autoFitImage)
   );
+  const [editSkinId, setEditSkinId] = useState(event.skinId || "inherit");
   const [editPosterUrl, setEditPosterUrl] = useState(event.posterUrl || "");
   const [editUploadingPoster, setEditUploadingPoster] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
@@ -139,6 +143,7 @@ export default function EditEventModal({ event, onClose }: EditEventModalProps) 
         maxRegistrations: editMaxRegistrations ? parseInt(editMaxRegistrations, 10) : undefined,
         autoFitImage: editAutoFitImage === "inherit" ? null : editAutoFitImage === "true",
         posterUrl: editPosterUrl || undefined,
+        skinId: editSkinId === "inherit" ? null : editSkinId,
       };
       await editEvent({ id: event.id, payload });
       onClose();
@@ -703,6 +708,24 @@ export default function EditEventModal({ event, onClose }: EditEventModalProps) 
               <option value="inherit">Inherit Global Setting</option>
               <option value="true">Force Auto-Fit (Preserve aspect ratio)</option>
               <option value="false">Force Cropped Cover (Standard height constraint)</option>
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-text-secondary text-xs font-bold mb-2 uppercase tracking-wide">
+              Visual Vibe Override (Skin)
+            </label>
+            <select
+              value={editSkinId}
+              onChange={(e) => setEditSkinId(e.target.value)}
+              className="w-full bg-bg-panel-alt border border-border-main rounded-xl px-4 py-2.5 text-sm text-text-primary focus:outline-none focus:border-accent-primary transition cursor-pointer"
+            >
+              <option value="inherit">Inherit Hub Setting</option>
+              {skins.map((skin) => (
+                <option key={skin.id} value={skin.id}>
+                  {skin.name}
+                </option>
+              ))}
             </select>
           </div>
 

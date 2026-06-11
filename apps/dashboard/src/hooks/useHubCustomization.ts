@@ -14,8 +14,13 @@ export interface HubCustomizationData {
   showCardCapacity: boolean;
   hubLayout: "GRID" | "LIST" | "CAROUSEL";
   hubThemeId?: string | null;
-  hubAccentColor?: string | null;
-  hubBgColor?: string | null;
+  hubSkinId?: string | null;
+  baseMode?: string | null;
+  accentHue?: number | null;
+  accentChroma?: number | null;
+  surfaceTone?: string | null;
+  skinId?: string | null;
+  fontPairingId?: string | null;
   hubBannerUrl?: string | null;
   hubThemeStyle: string;
   autoFitImages: boolean;
@@ -47,8 +52,13 @@ export function useHubCustomization() {
         showCardCapacity: data.showCardCapacity !== false,
         hubLayout: data.hubLayout || "GRID",
         hubThemeId: data.hubThemeId || "",
-        hubAccentColor: data.hubAccentColor || "#6366f1",
-        hubBgColor: data.hubBgColor || "#090d16",
+        hubSkinId: data.hubSkinId || "",
+        baseMode: data.baseMode || "dark",
+        accentHue: typeof data.accentHue === "number" ? data.accentHue : 250,
+        accentChroma: typeof data.accentChroma === "number" ? data.accentChroma : 0.18,
+        surfaceTone: data.surfaceTone || "mid",
+        skinId: data.skinId || "frosted",
+        fontPairingId: data.fontPairingId || "inter-inter",
         hubBannerUrl: data.hubBannerUrl || "",
         hubThemeStyle: data.hubThemeStyle || "DOT_MATRIX",
         autoFitImages: data.autoFitImages !== false,

@@ -8,9 +8,27 @@ export interface Theme {
   id: string;
   name: string;
   slug: string;
-  cssVariables: Record<string, string>;
+  baseMode: string;
+  accentHue: number;
+  accentChroma: number;
+  surfaceTone: string;
+  skinId: string;
+  fontPairingId: string;
+  cssVariables?: Record<string, string> | null;
   isPremium: boolean;
   price: number;
+}
+
+export interface Skin {
+  id: string;
+  name: string;
+  slug: string;
+  borderRadius: string;
+  borderStyle: string;
+  borderWidth: string;
+  shadowStyle: string;
+  fontFamily: string;
+  backdropStyle: string;
 }
 
 export function useThemes() {
@@ -27,6 +45,21 @@ export function useThemes() {
       });
       if (!res.ok) {
         throw new Error("Failed to load themes.");
+      }
+      return res.json();
+    },
+    enabled: !!token,
+  });
+
+  // Get Skins list query
+  const skinsQuery = useQuery<Skin[]>({
+    queryKey: ["skins"],
+    queryFn: async () => {
+      const res = await fetch(`${apiBase}/skins`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) {
+        throw new Error("Failed to load skins.");
       }
       return res.json();
     },
@@ -183,6 +216,9 @@ export function useThemes() {
     themes: themesQuery.data || [],
     isLoadingThemes: themesQuery.isLoading,
     isErrorThemes: themesQuery.isError,
+    skins: skinsQuery.data || [],
+    isLoadingSkins: skinsQuery.isLoading,
+    isErrorSkins: skinsQuery.isError,
     
     // Actions
     setOrgDefaultTheme: setOrgDefaultThemeMutation.mutateAsync,

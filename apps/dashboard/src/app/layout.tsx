@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono, Space_Grotesk } from "next/font/google";
+import { Geist, Geist_Mono, Space_Grotesk, Inter, Outfit, Fira_Code } from "next/font/google";
 import QueryProvider from "@/providers/QueryProvider";
 import { ToastProvider } from "@/providers/ToastProvider";
 import { AuthProvider } from "@/providers/AuthProvider";
@@ -20,6 +20,21 @@ const spaceGrotesk = Space_Grotesk({
   subsets: ["latin"],
 });
 
+const inter = Inter({
+  variable: "--font-inter",
+  subsets: ["latin"],
+});
+
+const outfit = Outfit({
+  variable: "--font-outfit",
+  subsets: ["latin"],
+});
+
+const firaCode = Fira_Code({
+  variable: "--font-fira-code",
+  subsets: ["latin"],
+});
+
 export const metadata: Metadata = {
   title: "EventsPlug Organizer Dashboard",
   description: "The multi-tenant SaaS console to organize events and manage embeddable registration widgets.",
@@ -33,7 +48,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} ${spaceGrotesk.variable} h-full antialiased`}
+      className={`${geistSans.variable} ${geistMono.variable} ${spaceGrotesk.variable} ${inter.variable} ${outfit.variable} ${firaCode.variable} h-full antialiased`}
       suppressHydrationWarning
     >
       <head>

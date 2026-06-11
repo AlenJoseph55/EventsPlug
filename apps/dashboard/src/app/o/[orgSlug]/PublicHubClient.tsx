@@ -3,7 +3,16 @@
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { formatFriendlyDate } from "@/lib/date-utils";
-import { getContrastAdjustedColor } from "@/lib/color-utils";
+import { deriveThemeVariables } from "@/lib/color-utils";
+import dynamic from "next/dynamic";
+
+const AuroraBg = dynamic(() => import("@/components/ui/backgrounds/Aurora"), { ssr: false });
+const GradientBg = dynamic(() => import("@/components/ui/backgrounds/Gradient"), { ssr: false });
+const ShapegridBg = dynamic(() => import("@/components/ui/backgrounds/Shapegrid"), { ssr: false });
+const PixelsnowBg = dynamic(() => import("@/components/ui/backgrounds/Pixelsnow"), { ssr: false });
+const LightfallBg = dynamic(() => import("@/components/ui/backgrounds/Lightfall"), { ssr: false });
+const SideraysBg = dynamic(() => import("@/components/ui/backgrounds/Siderays"), { ssr: false });
+const LightraysBg = dynamic(() => import("@/components/ui/backgrounds/Lightrays"), { ssr: false });
 
 interface HubEvent {
   id: string;
@@ -31,10 +40,22 @@ interface PublicHubClientProps {
     hubBannerUrl?: string;
     hubThemeStyle?: string;
     hubTheme?: {
-      cssVariables?: Record<string, string>;
+      baseMode?: string | null;
+      accentHue?: number | null;
+      accentChroma?: number | null;
+      surfaceTone?: string | null;
+      skinId?: string | null;
+      fontPairingId?: string | null;
+      cssVariables?: any;
     };
     defaultTheme?: {
-      cssVariables?: Record<string, string>;
+      baseMode?: string | null;
+      accentHue?: number | null;
+      accentChroma?: number | null;
+      surfaceTone?: string | null;
+      skinId?: string | null;
+      fontPairingId?: string | null;
+      cssVariables?: any;
     };
     hubAccentColor?: string;
     hubBgColor?: string;
@@ -48,27 +69,54 @@ interface PublicHubClientProps {
 }
 
 export default function PublicHubClient({ organization, events }: PublicHubClientProps) {
-  const [themeMode, setThemeMode] = useState<"dark" | "light">(() => {
-    if (typeof document !== "undefined") {
-      const attr = document.documentElement.getAttribute("data-hub-theme");
-      if (attr === "light") return "light";
-      if (attr === "dark") return "dark";
-    }
-    return "dark";
-  });
+  // Resolve base CSS themes from organization settings
+  const selTheme = organization.hubTheme || organization.defaultTheme || {
+    baseMode: "auto",
+    accentHue: 250,
+    accentChroma: 0.18,
+    surfaceTone: "mid",
+    skinId: "frosted",
+    fontPairingId: "inter-inter",
+  };
+
+  // If semantic columns are null/undefined but cssVariables exists (legacy record during migration)
+  // we fallback to system default to prevent crashes
+  const isThemeLegacy = selTheme.accentHue === undefined || selTheme.accentHue === null;
+  const finalTheme = isThemeLegacy
+    ? {
+        baseMode: "auto",
+        accentHue: 250,
+        accentChroma: 0.18,
+        surfaceTone: "mid",
+        skinId: "frosted",
+        fontPairingId: "inter-inter",
+      }
+    : selTheme;
+
+  const serverMode = finalTheme.baseMode === "light" ? "light" : "dark";
+  const [themeMode, setThemeMode] = useState<"dark" | "light">(serverMode);
 
   useEffect(() => {
-    // Ensure the hub class is present (the blocking script in layout.tsx should
-    // have already added it, but this is a safety net for edge cases)
     const root = document.documentElement;
+    const attr = root.getAttribute("data-hub-theme");
+    const saved = localStorage.getItem("eventsplug-hub-theme-preference");
+    
+    const mode = (attr === "light" || attr === "dark")
+      ? attr
+      : (saved === "light" || saved === "dark")
+      ? saved
+      : finalTheme.baseMode === "light"
+      ? "light"
+      : "dark";
+
+    setThemeMode(mode);
+
+    // Safety net: ensure the hub class is present and data attribute is synchronized
     if (!root.classList.contains("light-hub") && !root.classList.contains("dark-hub")) {
-      const saved = localStorage.getItem("eventsplug-hub-theme-preference");
-      const mode = saved === "light" ? "light" : "dark";
-      setThemeMode(mode);
       root.classList.add(mode === "light" ? "light-hub" : "dark-hub");
       root.setAttribute("data-hub-theme", mode);
     }
-  }, []);
+  }, [finalTheme.baseMode]);
 
   const toggleTheme = () => {
     const newMode = themeMode === "dark" ? "light" : "dark";
@@ -81,32 +129,17 @@ export default function PublicHubClient({ organization, events }: PublicHubClien
     root.setAttribute("data-hub-theme", newMode);
   };
 
-  // Resolve base CSS themes from organization settings
-  const selTheme = organization.hubTheme || organization.defaultTheme || {
-    cssVariables: {
-      "--primary-color": "#3b82f6",
-      "--bg-color": "#090d16",
-      "--text-color": "#f8fafc",
-      "--card-bg": "#111827",
-    },
+  // Resolve skin from organization settings
+  const selSkin = (organization as any).hubSkin || (organization as any).defaultSkin || {
+    borderRadius: "16px",
+    borderStyle: "solid",
+    borderWidth: "1px",
+    shadowStyle: "frosted",
+    fontFamily: "var(--font-sans)",
+    backdropStyle: "AURORA_GLOW",
   };
 
-  const variables = (selTheme.cssVariables || {}) as Record<string, string>;
-  const primaryColor = organization.hubAccentColor || variables["--primary-color"] || "#3b82f6";
-
-  // Calculate Dark Mode Colors
-  const darkBg = organization.hubBgColor || variables["--bg-color"] || "#090d16";
-  const darkCardBg = organization.hubBgColor || variables["--card-bg"] === "#111827" || variables["--card-bg"] === "#1e293b" || !variables["--card-bg"]
-    ? "rgba(255, 255, 255, 0.045)"
-    : variables["--card-bg"];
-  const darkTextColor = variables["--text-color"] || "#f8fafc";
-  const darkAccentColor = getContrastAdjustedColor(primaryColor, darkBg);
-
-  // Calculate Light Mode Colors
-  const lightBg = "#f8fafc";
-  const lightCardBg = "rgba(255, 255, 255, 0.75)";
-  const lightTextColor = "#0f172a";
-  const lightAccentColor = getContrastAdjustedColor(primaryColor, lightBg);
+  const derived = deriveThemeVariables(finalTheme, themeMode);
 
   return (
     <main
@@ -127,87 +160,64 @@ export default function PublicHubClient({ organization, events }: PublicHubClien
           66% { transform: translate(-20px, 20px) scale(0.95); }
         }
 
-        :root, html.dark-hub {
-          --hub-bg-color: ${darkBg};
-          --hub-text-color: ${darkTextColor};
-          --hub-card-bg: ${darkCardBg};
-          --hub-card-border: rgba(248, 250, 252, 0.08);
-          --hub-accent-color: ${darkAccentColor};
-          --hub-grid-line-color: 255, 255, 255;
-          --hub-grid-opacity: 0.035;
-          --hub-spotlight-opacity: 0.14;
-          --hub-aurora-accent-opacity: 0.06;
-          --hub-aurora-pink-opacity: 0.05;
+        :root {
+          --hub-bg-color: ${derived.bgColor};
+          --hub-text-color: ${derived.textColor};
+          --hub-card-bg: ${derived.cardBg};
+          --hub-card-border: ${derived.cardBorder};
+          --hub-accent-color: ${derived.primaryColor};
+          --hub-grid-line-color: ${derived.gridLineColor};
+          --hub-grid-opacity: ${derived.gridOpacity};
+          --hub-spotlight-opacity: ${themeMode === "light" ? "0.08" : "0.14"};
+          --hub-aurora-accent-opacity: ${themeMode === "light" ? "0.04" : "0.06"};
+          --hub-aurora-pink-opacity: ${themeMode === "light" ? "0.03" : "0.05"};
 
-          --hub-cover-bg: linear-gradient(135deg, rgba(255, 255, 255, 0.015), rgba(255, 255, 255, 0.005));
-          --hub-cover-border: rgba(248, 250, 252, 0.08);
-          --hub-muted-title: #475569;
-          --hub-muted-text: #94a3b8;
-          --hub-border-color: rgba(248, 250, 252, 0.08);
+          --hub-cover-bg: ${themeMode === "light" ? "linear-gradient(135deg, #f1f5f9, rgba(226, 232, 240, 0.5))" : "linear-gradient(135deg, rgba(255, 255, 255, 0.015), rgba(255, 255, 255, 0.005))"};
+          --hub-cover-border: ${derived.cardBorder};
+          --hub-muted-title: ${themeMode === "light" ? "#94a3b8" : "#475569"};
+          --hub-muted-text: ${derived.textSecondary};
+          --hub-border-color: ${derived.cardBorder};
           
-          --hub-logo-bg: rgba(255, 255, 255, 0.05);
-          --hub-title-color: #ffffff;
-          --hub-poster-text: #cbd5e1;
-          --hub-bar-bg: rgba(0, 0, 0, 0.4);
+          --hub-logo-bg: ${themeMode === "light" ? "#f1f5f9" : "rgba(255, 255, 255, 0.05)"};
+          --hub-title-color: ${derived.textColor};
+          --hub-poster-text: ${derived.textSecondary};
+          --hub-bar-bg: ${themeMode === "light" ? "#e2e8f0" : "rgba(0, 0, 0, 0.4)"};
           
-          --hub-soldout-btn-bg: rgba(255, 255, 255, 0.05);
-          --hub-soldout-btn-border: rgba(255, 255, 255, 0.05);
-          --hub-soldout-btn-text: #64748b;
+          --hub-soldout-btn-bg: ${themeMode === "light" ? "#f1f5f9" : "rgba(255, 255, 255, 0.05)"};
+          --hub-soldout-btn-border: ${derived.cardBorder};
+          --hub-soldout-btn-text: ${derived.textSecondary};
           
-          --hub-footer-strong-color: #cbd5e1;
+          --hub-footer-strong-color: ${derived.textSecondary};
           
-          --hub-theme-toggle-bg: rgba(15, 23, 42, 0.9);
-          --hub-theme-toggle-border: rgba(255, 255, 255, 0.08);
-          --hub-theme-toggle-text: #fbbf24;
-          --hub-theme-toggle-hover: rgba(30, 41, 59, 0.9);
+          --hub-theme-toggle-bg: ${themeMode === "light" ? "rgba(255, 255, 255, 0.95)" : "rgba(15, 23, 42, 0.9)"};
+          --hub-theme-toggle-border: ${derived.cardBorder};
+          --hub-theme-toggle-text: ${themeMode === "light" ? "#1e293b" : "#fbbf24"};
+          --hub-theme-toggle-hover: ${themeMode === "light" ? "#f8fafc" : "rgba(30, 41, 59, 0.9)"};
 
-          --hub-banner-overlay-bg: linear-gradient(to top, rgba(0,0,0,0.8) 0%, rgba(0,0,0,0.2) 50%, rgba(0,0,0,0.4) 100%);
-        }
+          --hub-banner-overlay-bg: ${themeMode === "light" ? "linear-gradient(to top, rgba(255,255,255,0.9) 0%, rgba(255,255,255,0.1) 50%, rgba(255,255,255,0.3) 100%)" : "linear-gradient(to top, rgba(0,0,0,0.8) 0%, rgba(0,0,0,0.2) 50%, rgba(0,0,0,0.4) 100%)"};
 
-        html.light-hub {
-          --hub-bg-color: ${lightBg};
-          --hub-text-color: ${lightTextColor};
-          --hub-card-bg: ${lightCardBg};
-          --hub-card-border: rgba(15, 23, 42, 0.08);
-          --hub-accent-color: ${lightAccentColor};
-          --hub-grid-line-color: 0, 0, 0;
-          --hub-grid-opacity: 0.04;
-          --hub-spotlight-opacity: 0.08;
-          --hub-aurora-accent-opacity: 0.04;
-          --hub-aurora-pink-opacity: 0.03;
-
-          --hub-cover-bg: linear-gradient(135deg, #f1f5f9, rgba(226, 232, 240, 0.5));
-          --hub-cover-border: rgba(15, 23, 42, 0.08);
-          --hub-muted-title: #94a3b8;
-          --hub-muted-text: #475569;
-          --hub-border-color: rgba(15, 23, 42, 0.08);
-          
-          --hub-logo-bg: #f1f5f9;
-          --hub-title-color: #0f172a;
-          --hub-poster-text: #475569;
-          --hub-bar-bg: #e2e8f0;
-          
-          --hub-soldout-btn-bg: #f1f5f9;
-          --hub-soldout-btn-border: #cbd5e1;
-          --hub-soldout-btn-text: #94a3b8;
-          
-          --hub-footer-strong-color: #475569;
-          
-          --hub-theme-toggle-bg: rgba(255, 255, 255, 0.95);
-          --hub-theme-toggle-border: rgba(15, 23, 42, 0.08);
-          --hub-theme-toggle-text: #1e293b;
-          --hub-theme-toggle-hover: #f8fafc;
-
-          --hub-banner-overlay-bg: linear-gradient(to top, rgba(255,255,255,0.9) 0%, rgba(255,255,255,0.1) 50%, rgba(255,255,255,0.3) 100%);
+          /* Structural skin tokens */
+          --hub-border-radius: ${derived.radiusCard};
+          --hub-border-style: solid;
+          --hub-border-width: ${derived.cardBorder === 'none' ? '0px' : '1px'};
+          --hub-font-family: var(--hub-font-body);
+          --hub-font-display: ${derived.fontDisplay};
+          --hub-font-body: ${derived.fontBody};
+          --hub-box-shadow: ${derived.shadowCard};
         }
 
         .hub-bg {
           background-color: var(--hub-bg-color);
           color: var(--hub-text-color);
+          font-family: var(--hub-font-family);
         }
         .hub-card {
           background-color: var(--hub-card-bg);
+          border-width: var(--hub-border-width);
+          border-style: var(--hub-border-style);
           border-color: var(--hub-card-border);
+          border-radius: var(--hub-border-radius);
+          box-shadow: var(--hub-box-shadow);
         }
         .hub-card-cover {
           background: var(--hub-cover-bg);
@@ -225,6 +235,7 @@ export default function PublicHubClient({ organization, events }: PublicHubClien
         }
         .hub-title {
           color: var(--hub-title-color);
+          font-family: var(--hub-font-display);
         }
         .hub-muted-title {
           color: var(--hub-muted-title);
@@ -293,58 +304,73 @@ export default function PublicHubClient({ organization, events }: PublicHubClien
 
       {/* Dynamic backdrop selector */}
       {(() => {
-        const themeStyle = organization.hubThemeStyle || "DOT_MATRIX";
+        const themeStyle = organization.hubThemeStyle || selSkin.backdropStyle || "DOT_MATRIX";
 
-        if (themeStyle === "GRID_WARP") {
-          return (
-            <>
+        switch (themeStyle) {
+          case "GRID_WARP":
+            return (
+              <>
+                <div
+                  style={{
+                    backgroundColor: "var(--hub-accent-color)",
+                    animation: 'spotlight-pulse 16s infinite ease-in-out',
+                  }}
+                  className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] rounded-full blur-[130px] pointer-events-none transition-all duration-500 hub-spotlight"
+                />
+                <div
+                  className="absolute inset-0 pointer-events-none hub-grid-warp-mesh"
+                  style={{
+                    backgroundSize: '16px 16px',
+                    transition: 'background-image 0.3s ease',
+                  }}
+                />
+              </>
+            );
+          case "AURORA_GLOW":
+            return (
+              <>
+                <div
+                  style={{
+                    backgroundColor: "var(--hub-accent-color)",
+                    animation: 'aurora-drift 22s infinite ease-in-out',
+                  }}
+                  className="absolute -top-40 -left-40 w-[600px] h-[600px] rounded-full blur-[160px] pointer-events-none transition-all duration-500 hub-aurora-accent"
+                />
+                <div
+                  style={{
+                    backgroundColor: '#ec4899',
+                    animation: 'aurora-drift 28s infinite ease-in-out reverse',
+                  }}
+                  className="absolute -bottom-40 -right-40 w-[500px] h-[500px] rounded-full blur-[140px] pointer-events-none transition-all duration-500 hub-aurora-pink"
+                />
+              </>
+            );
+          case "AURORA":
+            return <AuroraBg />;
+          case "GRADIENT":
+            return <GradientBg />;
+          case "SHAPEGRID":
+            return <ShapegridBg />;
+          case "PIXELSNOW":
+            return <PixelsnowBg />;
+          case "LIGHTFALL":
+            return <LightfallBg />;
+          case "SIDERAYS":
+            return <SideraysBg />;
+          case "LIGHTRAYS":
+            return <LightraysBg />;
+          case "DOT_MATRIX":
+          default:
+            return (
               <div
+                className="absolute inset-0 pointer-events-none hub-dot-matrix"
                 style={{
-                  backgroundColor: "var(--hub-accent-color)",
-                  animation: 'spotlight-pulse 16s infinite ease-in-out',
-                }}
-                className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] rounded-full blur-[130px] pointer-events-none transition-all duration-500 hub-spotlight"
-              />
-              <div
-                className="absolute inset-0 pointer-events-none hub-grid-warp-mesh"
-                style={{
-                  backgroundSize: '16px 16px',
+                  backgroundSize: '12px 12px',
                   transition: 'background-image 0.3s ease',
                 }}
               />
-            </>
-          );
+            );
         }
-        if (themeStyle === "AURORA_GLOW") {
-          return (
-            <>
-              <div
-                style={{
-                  backgroundColor: "var(--hub-accent-color)",
-                  animation: 'aurora-drift 22s infinite ease-in-out',
-                }}
-                className="absolute -top-40 -left-40 w-[600px] h-[600px] rounded-full blur-[160px] pointer-events-none transition-all duration-500 hub-aurora-accent"
-              />
-              <div
-                style={{
-                  backgroundColor: '#ec4899',
-                  animation: 'aurora-drift 28s infinite ease-in-out reverse',
-                }}
-                className="absolute -bottom-40 -right-40 w-[500px] h-[500px] rounded-full blur-[140px] pointer-events-none transition-all duration-500 hub-aurora-pink"
-              />
-            </>
-          );
-        }
-        // Default DOT_MATRIX
-        return (
-          <div
-            className="absolute inset-0 pointer-events-none hub-dot-matrix"
-            style={{
-              backgroundSize: '12px 12px',
-              transition: 'background-image 0.3s ease',
-            }}
-          />
-        );
       })()}
 
       {organization.hubBannerUrl && (

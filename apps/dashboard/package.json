@@ -13,10 +13,13 @@
     "@eventflow/types": "workspace:*",
     "@eventflow/validators": "workspace:*",
     "@tanstack/react-query": "^5.66.0",
+    "@types/three": "^0.184.1",
     "next": "16.2.2",
+    "ogl": "^1.0.11",
     "qrcode": "^1.5.4",
     "react": "19.2.4",
-    "react-dom": "19.2.4"
+    "react-dom": "19.2.4",
+    "three": "^0.184.0"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",

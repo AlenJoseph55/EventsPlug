@@ -28,6 +28,7 @@ export interface EventData {
   autoFitImage?: boolean | null;
   formTemplateId?: string;
   themeId?: string | null;
+  skinId?: string | null;
   // Backend returns 'formFields' (Prisma name); 'customFields' kept for legacy compatibility
   formFields?: CustomField[];
   customFields?: CustomField[];

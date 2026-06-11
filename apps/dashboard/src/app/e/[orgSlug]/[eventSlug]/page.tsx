@@ -3,6 +3,8 @@ import { notFound } from "next/navigation";
 import { fetchPublicEvent } from "@/lib/public-api";
 import EventPageClient from "./EventPageClient";
 
+export const dynamic = "force-dynamic";
+
 interface PageProps {
   params: Promise<{
     orgSlug: string;

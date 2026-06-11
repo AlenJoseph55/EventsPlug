@@ -5,6 +5,7 @@ import { useAuth } from "@/providers/AuthProvider";
 import { useThemes, Theme } from "@/hooks/useThemes";
 import { useEvents } from "@/hooks/useEvents";
 import RegistrationForm from "@/components/RegistrationForm";
+import { deriveThemeVariables } from "@/lib/color-utils";
 
 export default function ThemesTab() {
   const { user, adminTheme } = useAuth();
@@ -86,45 +87,14 @@ export default function ThemesTab() {
 
   // Find preview theme object
   const selTheme = themes.find((t) => t.id === previewThemeId || t.slug === previewThemeId) || themes[0];
-  let variables = selTheme?.cssVariables || {
-    "--primary-color": "#6366f1",
-    "--bg-color": "#0d1321",
-    "--text-color": "#f8fafc",
-    "--card-bg": "#1e293b",
-  };
+  const previewThemeMode = selTheme?.baseMode === "light"
+    ? "light"
+    : selTheme?.baseMode === "dark"
+    ? "dark"
+    : (adminTheme === "light" ? "light" : "dark");
 
-  // If the widget theme is magic-adaptive, mock color harvesting from the active dashboard theme!
-  if (selTheme?.slug === "magic-adaptive") {
-    if (adminTheme === "light") {
-      variables = {
-        "--primary-color": "#2563eb", // blue-600
-        "--bg-color": "#ffffff",
-        "--text-color": "#09090b",
-        "--card-bg": "rgba(0, 0, 0, 0.03)",
-      };
-    } else {
-      variables = {
-        "--primary-color": "#6366f1", // indigo-500
-        "--bg-color": "#09090b",
-        "--text-color": "#fafafa",
-        "--card-bg": "rgba(255, 255, 255, 0.04)",
-      };
-    }
-  }
-
-  const isBgDark = !variables["--bg-color"] || getPrimaryContrast(variables["--bg-color"]) === "#ffffff";
-
-  const containerStyles = {
-    backgroundColor: variables["--bg-color"] || "#0d1321",
-    color: variables["--text-color"] || "#f8fafc",
-  } as React.CSSProperties;
-
-  const cardStyles = {
-    backgroundColor: variables["--card-bg"] === "#111827" || variables["--card-bg"] === "#1e293b" || !variables["--card-bg"]
-      ? (isBgDark ? "rgba(255, 255, 255, 0.045)" : "rgba(0, 0, 0, 0.03)")
-      : variables["--card-bg"],
-    borderColor: isBgDark ? "rgba(255, 255, 255, 0.08)" : "rgba(0, 0, 0, 0.08)",
-  } as React.CSSProperties;
+  const derived = deriveThemeVariables(selTheme || {}, previewThemeMode);
+  const isBgDark = previewThemeMode === "dark";
 
   function getPrimaryContrast(colorStr?: string): string {
     if (!colorStr) return "#ffffff";
@@ -150,10 +120,23 @@ export default function ThemesTab() {
     return "#ffffff";
   }
 
-  const primaryContrast = getPrimaryContrast(variables["--primary-color"]);
+  const primaryContrast = getPrimaryContrast(derived.primaryColor);
+
+  const containerStyles = {
+    backgroundColor: derived.bgColor,
+    color: derived.textColor,
+    fontFamily: derived.fontBody,
+  } as React.CSSProperties;
+
+  const cardStyles = {
+    backgroundColor: derived.cardBg,
+    border: derived.cardBorder,
+    borderRadius: derived.radiusCard,
+    boxShadow: derived.shadowCard,
+  } as React.CSSProperties;
 
   const primaryStyles = {
-    backgroundColor: variables["--primary-color"] || "#6366f1",
+    backgroundColor: derived.primaryColor,
     color: primaryContrast,
   } as React.CSSProperties;
 
@@ -351,42 +334,50 @@ export default function ThemesTab() {
             </div>
 
             <div className="grid grid-cols-1 gap-3">
-              {themes.map((theme) => (
-                <div
-                  key={theme.id}
-                  onClick={() => setPreviewThemeId(theme.id)}
-                  className={`p-4 rounded-xl border transition-all duration-200 cursor-pointer flex items-center justify-between gap-4 ${
-                    previewThemeId === theme.id
-                      ? "bg-accent-primary/10 border-accent-primary/40 shadow-sm"
-                      : "bg-bg-panel/20 border-border-main hover:border-slate-700/85"
-                  }`}
-                >
-                  <div className="min-w-0">
-                    <span className="text-xs font-bold text-text-primary block flex items-center gap-1.5">
-                      {theme.name}
-                      {theme.isPremium && <span className="text-[10px] text-accent-primary font-extrabold uppercase">Premium</span>}
-                    </span>
-                    <span className="text-[10px] font-mono text-text-secondary block">{theme.slug}</span>
-                  </div>
+              {themes.map((theme) => {
+                const themeMode = theme.baseMode === "light"
+                  ? "light"
+                  : theme.baseMode === "dark"
+                  ? "dark"
+                  : (adminTheme === "light" ? "light" : "dark");
+                const themeDerived = deriveThemeVariables(theme, themeMode);
+                return (
+                  <div
+                    key={theme.id}
+                    onClick={() => setPreviewThemeId(theme.id)}
+                    className={`p-4 rounded-xl border transition-all duration-200 cursor-pointer flex items-center justify-between gap-4 ${
+                      previewThemeId === theme.id
+                        ? "bg-accent-primary/10 border-accent-primary/40 shadow-sm"
+                        : "bg-bg-panel/20 border-border-main hover:border-slate-700/85"
+                    }`}
+                  >
+                    <div className="min-w-0">
+                      <span className="text-xs font-bold text-text-primary block flex items-center gap-1.5">
+                        {theme.name}
+                        {theme.isPremium && <span className="text-[10px] text-accent-primary font-extrabold uppercase">Premium</span>}
+                      </span>
+                      <span className="text-[10px] font-mono text-text-secondary block">{theme.slug}</span>
+                    </div>
 
-                  <div className="flex items-center gap-3 shrink-0">
-                    {theme.slug === "magic-adaptive" ? (
-                      <span className="text-[9px] text-accent-primary font-medium italic">Adaptive</span>
-                    ) : (
-                      <div className="flex gap-1.5">
-                        <span className="w-3 h-3 rounded-full border border-slate-800 shadow" style={{ backgroundColor: theme.cssVariables?.["--primary-color"] }} title="Primary" />
-                        <span className="w-3 h-3 rounded-full border border-slate-800 shadow" style={{ backgroundColor: theme.cssVariables?.["--bg-color"] }} title="Background" />
-                        <span className="w-3 h-3 rounded-full border border-slate-800 shadow" style={{ backgroundColor: theme.cssVariables?.["--card-bg"] }} title="Card BG" />
+                    <div className="flex items-center gap-3 shrink-0">
+                      {theme.slug === "magic-adaptive" ? (
+                        <span className="text-[9px] text-accent-primary font-medium italic">Adaptive</span>
+                      ) : (
+                        <div className="flex gap-1.5">
+                          <span className="w-3 h-3 rounded-full border border-slate-800 shadow" style={{ backgroundColor: themeDerived.primaryColor }} title="Primary" />
+                          <span className="w-3 h-3 rounded-full border border-slate-800 shadow" style={{ backgroundColor: themeDerived.bgColor }} title="Background" />
+                          <span className="w-3 h-3 rounded-full border border-slate-800 shadow" style={{ backgroundColor: themeDerived.cardBg }} title="Card BG" />
+                        </div>
+                      )}
+                      <div className={`w-3.5 h-3.5 rounded-full border flex items-center justify-center ${
+                        previewThemeId === theme.id ? "border-accent-primary bg-accent-primary" : "border-border-main bg-transparent"
+                      }`}>
+                        {previewThemeId === theme.id && <span className="w-1.5 h-1.5 rounded-full bg-white" />}
                       </div>
-                    )}
-                    <div className={`w-3.5 h-3.5 rounded-full border flex items-center justify-center ${
-                      previewThemeId === theme.id ? "border-accent-primary bg-accent-primary" : "border-border-main bg-transparent"
-                    }`}>
-                      {previewThemeId === theme.id && <span className="w-1.5 h-1.5 rounded-full bg-white" />}
                     </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         </div>
@@ -665,9 +656,9 @@ export default function ThemesTab() {
                       formFields: editingFields as any,
                     }}
                     preview={true}
-                    primaryColor={variables["--primary-color"] || "#6366f1"}
-                    cardBg={variables["--card-bg"] || "#1e293b"}
-                    textColor={variables["--text-color"] || "#f8fafc"}
+                    primaryColor={derived.primaryColor}
+                    cardBg={derived.cardBg}
+                    textColor={derived.textColor}
                   />
                 </div>
               </div>

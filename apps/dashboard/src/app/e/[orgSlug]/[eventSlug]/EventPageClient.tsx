@@ -4,7 +4,16 @@ import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import RegistrationForm from "@/components/RegistrationForm";
 import { formatFriendlyDate } from "@/lib/date-utils";
-import { getContrastAdjustedColor } from "@/lib/color-utils";
+import { deriveThemeVariables } from "@/lib/color-utils";
+import dynamic from "next/dynamic";
+
+const AuroraBg = dynamic(() => import("@/components/ui/backgrounds/Aurora"), { ssr: false });
+const GradientBg = dynamic(() => import("@/components/ui/backgrounds/Gradient"), { ssr: false });
+const ShapegridBg = dynamic(() => import("@/components/ui/backgrounds/Shapegrid"), { ssr: false });
+const PixelsnowBg = dynamic(() => import("@/components/ui/backgrounds/Pixelsnow"), { ssr: false });
+const LightfallBg = dynamic(() => import("@/components/ui/backgrounds/Lightfall"), { ssr: false });
+const SideraysBg = dynamic(() => import("@/components/ui/backgrounds/Siderays"), { ssr: false });
+const LightraysBg = dynamic(() => import("@/components/ui/backgrounds/Lightrays"), { ssr: false });
 
 interface EventPageClientProps {
   event: any;
@@ -12,30 +21,65 @@ interface EventPageClientProps {
 
 export default function EventPageClient({ event }: EventPageClientProps) {
   const [registeredTicket, setRegisteredTicket] = useState<any>(null);
-  const [themeMode, setThemeMode] = useState<"dark" | "light">(() => {
-    // Read from the data attribute set by the blocking script in layout.tsx
-    // This ensures SSR/first-paint matches what the user previously selected
-    if (typeof document !== "undefined") {
-      const attr = document.documentElement.getAttribute("data-hub-theme");
-      if (attr === "light") return "light";
-      if (attr === "dark") return "dark";
-    }
-    return "dark";
-  });
+
+  // Resolve base CSS themes from organization settings (with event override theme)
+  const selTheme = event.theme || event.organization.hubTheme || event.organization.defaultTheme || {
+    baseMode: "auto",
+    accentHue: 250,
+    accentChroma: 0.18,
+    surfaceTone: "mid",
+    skinId: "frosted",
+    fontPairingId: "inter-inter",
+  };
+
+  // If semantic columns are null/undefined but cssVariables exists (legacy record during migration)
+  // we fallback to system default to prevent crashes
+  const isThemeLegacy = selTheme.accentHue === undefined || selTheme.accentHue === null;
+  const finalTheme = isThemeLegacy
+    ? {
+        baseMode: "auto",
+        accentHue: 250,
+        accentChroma: 0.18,
+        surfaceTone: "mid",
+        skinId: "frosted",
+        fontPairingId: "inter-inter",
+      }
+    : selTheme;
+
+  // Resolve skin: event.skin (if overridden) or fall back to organization settings
+  const selSkin = event.skin || event.organization.hubSkin || event.organization.defaultSkin || {
+    borderRadius: "16px",
+    borderStyle: "solid",
+    borderWidth: "1px",
+    shadowStyle: "frosted",
+    fontFamily: "var(--font-sans)",
+    backdropStyle: "AURORA_GLOW",
+  };
+
+  const serverMode = finalTheme.baseMode === "light" ? "light" : "dark";
+  const [themeMode, setThemeMode] = useState<"dark" | "light">(serverMode);
 
   useEffect(() => {
-    // If no blocking script attribute was set, check localStorage / system preference
-    const attr = document.documentElement.getAttribute("data-hub-theme");
-    if (!attr) {
-      const saved = localStorage.getItem("eventsplug-hub-theme-preference");
-      if (saved === "dark" || saved === "light") {
-        setThemeMode(saved);
-      } else {
-        const prefersLight = window.matchMedia("(prefers-color-scheme: light)").matches;
-        setThemeMode(prefersLight ? "light" : "dark");
-      }
+    const root = document.documentElement;
+    const attr = root.getAttribute("data-hub-theme");
+    const saved = localStorage.getItem("eventsplug-hub-theme-preference");
+    
+    const mode = (attr === "light" || attr === "dark")
+      ? attr
+      : (saved === "light" || saved === "dark")
+      ? saved
+      : finalTheme.baseMode === "light"
+      ? "light"
+      : "dark";
+
+    setThemeMode(mode);
+
+    // Sync HTML class and attribute
+    if (!root.classList.contains("light-hub") && !root.classList.contains("dark-hub")) {
+      root.classList.add(mode === "light" ? "light-hub" : "dark-hub");
+      root.setAttribute("data-hub-theme", mode);
     }
-  }, []);
+  }, [finalTheme.baseMode]);
 
   const toggleTheme = () => {
     const newMode = themeMode === "dark" ? "light" : "dark";
@@ -47,31 +91,7 @@ export default function EventPageClient({ event }: EventPageClientProps) {
     root.setAttribute("data-hub-theme", newMode);
   };
 
-  const selTheme = event.theme || event.organization.hubTheme || event.organization.defaultTheme || {
-    cssVariables: {
-      "--primary-color": "#6366f1",
-      "--bg-color": "#090d16",
-      "--text-color": "#f8fafc",
-      "--card-bg": "#111827",
-    },
-  };
-
-  const variables = (selTheme.cssVariables || {}) as Record<string, string>;
-  const primaryColor = event.theme ? (variables["--primary-color"] || "#6366f1") : (event.organization.hubAccentColor || variables["--primary-color"] || "#6366f1");
-
-  // Determine active mode colors
-  const isLight = themeMode === "light";
-  const bgColor = isLight ? "#f8fafc" : (event.theme ? (variables["--bg-color"] || "#090d16") : (event.organization.hubBgColor || variables["--bg-color"] || "#090d16"));
-
-  // If a custom background is set, or theme uses default solid gray backgrounds, use an adaptive transparent overlay so card tints with bgColor
-  const cardBg = isLight
-    ? "rgba(255, 255, 255, 0.75)"
-    : (event.theme ? (variables["--card-bg"] || "rgba(255, 255, 255, 0.045)") : (event.organization.hubBgColor || variables["--card-bg"] === "#111827" || variables["--card-bg"] === "#1e293b" || !variables["--card-bg"]
-        ? "rgba(255, 255, 255, 0.045)"
-        : variables["--card-bg"]));
-  const textColor = isLight ? "#0f172a" : (variables["--text-color"] || "#f8fafc");
-
-  const adjustedAccentColor = getContrastAdjustedColor(primaryColor, bgColor);
+  const derived = deriveThemeVariables(finalTheme, themeMode);
 
   // Capacity calculations
   const registeredCount = event._count?.registrations || 0;
@@ -114,13 +134,11 @@ export default function EventPageClient({ event }: EventPageClientProps) {
   return (
     <main
       style={{
-        backgroundColor: bgColor,
-        color: textColor,
         transition: "background-color 0.3s ease, color 0.3s ease",
       }}
-      className="min-h-screen relative overflow-hidden px-4 py-8 md:py-16 font-sans transition-colors duration-300"
+      className="min-h-screen relative overflow-hidden px-4 py-8 md:py-16 hub-bg"
     >
-      {/* Dynamic Keyframe Animations */}
+      {/* Dynamic Keyframe Animations & Hub CSS Variables */}
       <style jsx global>{`
         @keyframes spotlight-pulse {
           0%, 100% { transform: translate(-50%, -50%) scale(1) translate(0, 0); opacity: 0.12; }
@@ -131,97 +149,234 @@ export default function EventPageClient({ event }: EventPageClientProps) {
           33% { transform: translate(30px, -50px) scale(1.08); }
           66% { transform: translate(-20px, 20px) scale(0.95); }
         }
+
+        :root {
+          --hub-bg-color: ${derived.bgColor};
+          --hub-text-color: ${derived.textColor};
+          --hub-card-bg: ${derived.cardBg};
+          --hub-card-border: ${derived.cardBorder};
+          --hub-accent-color: ${derived.primaryColor};
+          --hub-grid-line-color: ${derived.gridLineColor};
+          --hub-grid-opacity: ${derived.gridOpacity};
+          --hub-spotlight-opacity: ${themeMode === "light" ? "0.08" : "0.14"};
+          --hub-aurora-accent-opacity: ${themeMode === "light" ? "0.04" : "0.06"};
+          --hub-aurora-pink-opacity: ${themeMode === "light" ? "0.03" : "0.05"};
+
+          --hub-cover-bg: ${themeMode === "light" ? "linear-gradient(135deg, #f1f5f9, rgba(226, 232, 240, 0.5))" : "linear-gradient(135deg, rgba(255, 255, 255, 0.015), rgba(255, 255, 255, 0.005))"};
+          --hub-cover-border: ${derived.cardBorder};
+          --hub-muted-title: ${themeMode === "light" ? "#94a3b8" : "#475569"};
+          --hub-muted-text: ${derived.textSecondary};
+          --hub-border-color: ${derived.cardBorder};
+          
+          --hub-logo-bg: ${themeMode === "light" ? "#f1f5f9" : "rgba(255, 255, 255, 0.05)"};
+          --hub-title-color: ${derived.textColor};
+          --hub-poster-text: ${derived.textSecondary};
+          --hub-bar-bg: ${themeMode === "light" ? "#e2e8f0" : "rgba(0, 0, 0, 0.4)"};
+          
+          --hub-soldout-btn-bg: ${themeMode === "light" ? "#f1f5f9" : "rgba(255, 255, 255, 0.05)"};
+          --hub-soldout-btn-border: ${derived.cardBorder};
+          --hub-soldout-btn-text: ${derived.textSecondary};
+          
+          --hub-footer-strong-color: ${derived.textSecondary};
+          
+          --hub-theme-toggle-bg: ${themeMode === "light" ? "rgba(255, 255, 255, 0.95)" : "rgba(15, 23, 42, 0.9)"};
+          --hub-theme-toggle-border: ${derived.cardBorder};
+          --hub-theme-toggle-text: ${themeMode === "light" ? "#1e293b" : "#fbbf24"};
+          --hub-theme-toggle-hover: ${themeMode === "light" ? "#f8fafc" : "rgba(30, 41, 59, 0.9)"};
+
+          --hub-banner-overlay-bg: ${themeMode === "light" ? "linear-gradient(to top, rgba(255,255,255,0.9) 0%, rgba(255,255,255,0.1) 50%, rgba(255,255,255,0.3) 100%)" : "linear-gradient(to top, rgba(0,0,0,0.8) 0%, rgba(0,0,0,0.2) 50%, rgba(0,0,0,0.4) 100%)"};
+
+          /* Structural skin tokens */
+          --hub-border-radius: ${derived.radiusCard};
+          --hub-border-style: solid;
+          --hub-border-width: ${derived.cardBorder === 'none' ? '0px' : '1px'};
+          --hub-font-family: var(--hub-font-body);
+          --hub-font-display: ${derived.fontDisplay};
+          --hub-font-body: ${derived.fontBody};
+          --hub-box-shadow: ${derived.shadowCard};
+        }
+
+        .hub-bg {
+          background-color: var(--hub-bg-color);
+          color: var(--hub-text-color);
+          font-family: var(--hub-font-family);
+        }
+        .hub-card {
+          background-color: var(--hub-card-bg);
+          border-width: var(--hub-border-width);
+          border-style: var(--hub-border-style);
+          border-color: var(--hub-card-border);
+          border-radius: var(--hub-border-radius);
+          box-shadow: var(--hub-box-shadow);
+        }
+        .hub-card-cover {
+          background: var(--hub-cover-bg);
+          border-color: var(--hub-cover-border);
+        }
+        .hub-border {
+          border-color: var(--hub-border-color);
+        }
+        .hub-logo-img, .hub-icon-container {
+          background-color: var(--hub-logo-bg);
+          border-color: var(--hub-border-color);
+        }
+        .hub-icon-container {
+          color: var(--hub-text-color);
+        }
+        .hub-title {
+          color: var(--hub-title-color);
+          font-family: var(--hub-font-display);
+        }
+        .hub-muted-title {
+          color: var(--hub-muted-title);
+        }
+        .hub-muted-text {
+          color: var(--hub-muted-text);
+        }
+        .hub-poster-placeholder-text {
+          color: var(--hub-poster-text);
+        }
+        .hub-bar-container {
+          background-color: var(--hub-bar-bg);
+          border-color: var(--hub-border-color);
+        }
+        .hub-btn-primary {
+          background-color: var(--hub-accent-color);
+          color: #ffffff !important;
+          box-shadow: 0 4px 14px -4px var(--hub-accent-color);
+        }
+        .hub-btn-soldout {
+          background-color: var(--hub-soldout-btn-bg);
+          border-color: var(--hub-soldout-btn-border);
+          color: var(--hub-soldout-btn-text);
+        }
+        .hub-footer-strong {
+          color: var(--hub-footer-strong-color);
+        }
+
+        .hub-theme-toggle {
+          background-color: var(--hub-theme-toggle-bg);
+          border-color: var(--hub-theme-toggle-border);
+          color: var(--hub-theme-toggle-text);
+        }
+        .hub-theme-toggle:hover {
+          background-color: var(--hub-theme-toggle-hover);
+        }
+
+        /* Backdrop Grid/Matrix Styling */
+        .hub-spotlight {
+          opacity: var(--hub-spotlight-opacity);
+        }
+        .hub-grid-warp-mesh {
+          background-image: linear-gradient(to right, rgba(var(--hub-grid-line-color), var(--hub-grid-opacity)) 1px, transparent 1px), linear-gradient(to bottom, rgba(var(--hub-grid-line-color), var(--hub-grid-opacity)) 1px, transparent 1px);
+        }
+        .hub-aurora-accent {
+          opacity: var(--hub-aurora-accent-opacity);
+        }
+        .hub-aurora-pink {
+          opacity: var(--hub-aurora-pink-opacity);
+        }
+        .hub-dot-matrix {
+          background-image: radial-gradient(rgba(var(--hub-grid-line-color), var(--hub-grid-opacity)) 1px, transparent 1px);
+        }
+
+        /* Toggle Button Icon Visibility */
+        html.dark-hub .hub-theme-sun { display: inline; }
+        html.dark-hub .hub-theme-moon { display: none; }
+        
+        html.light-hub .hub-theme-sun { display: none; }
+        html.light-hub .hub-theme-moon { display: inline; }
       `}</style>
 
       {/* Floating Dark/Light Toggle Switch */}
       <button
         onClick={toggleTheme}
         aria-label="Toggle dark/light mode"
-        className={`fixed bottom-6 right-6 z-50 flex items-center justify-center p-3.5 rounded-full shadow-2xl border transition-all duration-300 hover:scale-105 active:scale-95 ${
-          isLight
-            ? "bg-white/95 text-slate-800 border-slate-200 hover:bg-slate-50"
-            : "bg-slate-900/90 text-amber-400 border-slate-800 hover:bg-slate-850"
-        }`}
+        className="fixed bottom-6 right-6 z-50 flex items-center justify-center p-3.5 rounded-full shadow-2xl border transition-all duration-300 hover:scale-105 active:scale-95 hub-theme-toggle"
       >
-        <span className="text-base select-none leading-none">
-          {isLight ? "🌙" : "☀️"}
+        <span className="text-base select-none leading-none flex items-center justify-center">
+          <span className="hub-theme-sun">☀️</span>
+          <span className="hub-theme-moon">🌙</span>
         </span>
       </button>
 
       {/* Dynamic backdrop selector */}
       {(() => {
-        const themeStyle = event.organization.hubThemeStyle || "DOT_MATRIX";
-        const gridLineColor = isLight ? "0, 0, 0" : "255, 255, 255";
-        const gridOpacity = isLight ? "0.04" : "0.035";
+        const themeStyle = event.organization.hubThemeStyle || selSkin.backdropStyle || "DOT_MATRIX";
 
-        if (themeStyle === "GRID_WARP") {
-          return (
-            <>
+        switch (themeStyle) {
+          case "GRID_WARP":
+            return (
+              <>
+                <div
+                  style={{
+                    backgroundColor: "var(--hub-accent-color)",
+                    animation: 'spotlight-pulse 16s infinite ease-in-out',
+                  }}
+                  className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] rounded-full blur-[130px] pointer-events-none transition-all duration-500 hub-spotlight"
+                />
+                <div
+                  className="absolute inset-0 pointer-events-none hub-grid-warp-mesh"
+                  style={{
+                    backgroundSize: '16px 16px',
+                    transition: 'background-image 0.3s ease',
+                  }}
+                />
+              </>
+            );
+          case "AURORA_GLOW":
+            return (
+              <>
+                <div
+                  style={{
+                    backgroundColor: "var(--hub-accent-color)",
+                    animation: 'aurora-drift 22s infinite ease-in-out',
+                  }}
+                  className="absolute -top-40 -left-40 w-[600px] h-[600px] rounded-full blur-[160px] pointer-events-none transition-all duration-500 hub-aurora-accent"
+                />
+                <div
+                  style={{
+                    backgroundColor: '#ec4899',
+                    animation: 'aurora-drift 28s infinite ease-in-out reverse',
+                  }}
+                  className="absolute -bottom-40 -right-40 w-[500px] h-[500px] rounded-full blur-[140px] pointer-events-none transition-all duration-500 hub-aurora-pink"
+                />
+              </>
+            );
+          case "AURORA":
+            return <AuroraBg />;
+          case "GRADIENT":
+            return <GradientBg />;
+          case "SHAPEGRID":
+            return <ShapegridBg />;
+          case "PIXELSNOW":
+            return <PixelsnowBg />;
+          case "LIGHTFALL":
+            return <LightfallBg />;
+          case "SIDERAYS":
+            return <SideraysBg />;
+          case "LIGHTRAYS":
+            return <LightraysBg />;
+          case "DOT_MATRIX":
+          default:
+            return (
               <div
+                className="absolute inset-0 pointer-events-none hub-dot-matrix"
                 style={{
-                  backgroundColor: adjustedAccentColor,
-                  animation: 'spotlight-pulse 16s infinite ease-in-out',
-                }}
-                className={`absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] rounded-full blur-[130px] pointer-events-none transition-all duration-500 ${
-                  isLight ? "opacity-[0.08]" : "opacity-[0.14]"
-                }`}
-              />
-              <div
-                className="absolute inset-0 pointer-events-none"
-                style={{
-                  backgroundImage: `linear-gradient(to right, rgba(${gridLineColor}, ${gridOpacity}) 1px, transparent 1px), linear-gradient(to bottom, rgba(${gridLineColor}, ${gridOpacity}) 1px, transparent 1px)`,
-                  backgroundSize: '16px 16px',
+                  backgroundSize: '12px 12px',
                   transition: 'background-image 0.3s ease',
                 }}
               />
-            </>
-          );
+            );
         }
-        if (themeStyle === "AURORA_GLOW") {
-          return (
-            <>
-              <div
-                style={{
-                  backgroundColor: adjustedAccentColor,
-                  animation: 'aurora-drift 22s infinite ease-in-out',
-                }}
-                className={`absolute -top-40 -left-40 w-[600px] h-[600px] rounded-full blur-[160px] pointer-events-none transition-all duration-500 ${
-                  isLight ? "opacity-[0.04]" : "opacity-[0.06]"
-                }`}
-              />
-              <div
-                style={{
-                  backgroundColor: '#ec4899',
-                  animation: 'aurora-drift 28s infinite ease-in-out reverse',
-                }}
-                className={`absolute -bottom-40 -right-40 w-[500px] h-[500px] rounded-full blur-[140px] pointer-events-none transition-all duration-500 ${
-                  isLight ? "opacity-[0.03]" : "opacity-[0.05]"
-                }`}
-              />
-            </>
-          );
-        }
-        // Default DOT_MATRIX
-        return (
-          <div
-            className="absolute inset-0 pointer-events-none"
-            style={{
-              backgroundImage: `radial-gradient(rgba(${gridLineColor}, ${gridOpacity}) 1px, transparent 1px)`,
-              backgroundSize: '12px 12px',
-              transition: 'background-image 0.3s ease',
-            }}
-          />
-        );
       })()}
 
       <div className="max-w-4xl mx-auto space-y-6 relative z-10">
         {/* Hub Back link header */}
-        <div className={`pb-4 border-b mb-4 ${isLight ? "border-slate-200" : "border-white/[0.04]"}`}>
+        <div className="pb-4 border-b mb-4 hub-border">
           <Link
             href={`/o/${event.organization.slug}`}
-            className={`inline-flex items-center gap-2 text-xs font-bold transition-colors group whitespace-nowrap ${
-              isLight ? "text-slate-500 hover:text-slate-900" : "text-slate-400 hover:text-white"
-            }`}
+            className="inline-flex items-center gap-2 text-xs font-bold transition-colors group whitespace-nowrap hub-muted-text hover:opacity-90"
           >
             <span className="transform group-hover:translate-x-[-2px] transition-transform duration-200">←</span>
             <span>Back to {event.organization.name}</span>
@@ -233,13 +388,7 @@ export default function EventPageClient({ event }: EventPageClientProps) {
           {/* Left details panel: 7-span */}
           <div className="md:col-span-7 space-y-6">
             {/* Event poster/cover card */}
-            <div
-              style={{
-                backgroundColor: cardBg,
-                borderColor: isLight ? "rgba(15, 23, 42, 0.08)" : "rgba(255, 255, 255, 0.08)",
-              }}
-              className="rounded-3xl border overflow-hidden shadow-2xl relative"
-            >
+            <div className="overflow-hidden relative hub-card">
               {event.posterUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
@@ -248,17 +397,12 @@ export default function EventPageClient({ event }: EventPageClientProps) {
                   className="w-full h-auto max-h-[340px] object-cover"
                 />
               ) : (
-                <div
-                  style={{
-                    background: `linear-gradient(135deg, ${adjustedAccentColor}20, ${adjustedAccentColor}40)`,
-                  }}
-                  className="w-full h-[180px] flex items-center justify-center relative overflow-hidden"
-                >
+                <div className="w-full h-[180px] flex items-center justify-center relative overflow-hidden hub-card-cover">
                   <div
-                    style={{ backgroundColor: adjustedAccentColor }}
+                    style={{ backgroundColor: "var(--hub-accent-color)" }}
                     className="absolute w-[200px] h-[200px] rounded-full blur-3xl opacity-30 animate-pulse"
                   />
-                  <span className="text-xl font-black uppercase tracking-widest opacity-40 text-center px-6">
+                  <span className="text-xl font-black uppercase tracking-widest opacity-40 text-center px-6 hub-poster-placeholder-text">
                     {event.title}
                   </span>
                 </div>
@@ -266,13 +410,7 @@ export default function EventPageClient({ event }: EventPageClientProps) {
             </div>
 
             {/* Event Meta Information Card */}
-            <div
-              style={{
-                backgroundColor: cardBg,
-                borderColor: isLight ? "rgba(15, 23, 42, 0.08)" : "rgba(255, 255, 255, 0.08)",
-              }}
-              className="rounded-3xl border p-6 space-y-6 shadow-xl"
-            >
+            <div className="p-6 space-y-6 hub-card">
               <div className="space-y-2">
                 <h1 className="text-2xl md:text-3xl font-black tracking-tight leading-tight">
                   {event.title}
@@ -283,27 +421,23 @@ export default function EventPageClient({ event }: EventPageClientProps) {
               </div>
 
               {/* Grid cards info details */}
-              <div className={`grid grid-cols-1 sm:grid-cols-2 gap-4 border-y py-4 ${isLight ? "border-slate-200" : "border-white/5"}`}>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 border-y py-4 hub-border">
                 <div className="flex items-center gap-3">
-                  <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-sm shadow ${
-                    isLight ? "bg-slate-100 border border-slate-200 text-slate-800" : "bg-white/5 border border-white/5 shadow-white/5"
-                  }`}>
+                  <div className="w-9 h-9 rounded-xl border flex items-center justify-center text-sm shadow hub-icon-container hub-border">
                     📅
                   </div>
                   <div className="text-[11px]">
-                    <div className="font-extrabold uppercase opacity-65 tracking-wide">Date & Time</div>
+                    <div className="font-extrabold uppercase tracking-wide hub-muted-title">Date & Time</div>
                     <div className="font-bold">{formatFriendlyDate(event.date)}</div>
                   </div>
                 </div>
 
                 <div className="flex items-center gap-3">
-                  <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-sm shadow ${
-                    isLight ? "bg-slate-100 border border-slate-200 text-slate-800" : "bg-white/5 border border-white/5 shadow-white/5"
-                  }`}>
+                  <div className="w-9 h-9 rounded-xl border flex items-center justify-center text-sm shadow hub-icon-container hub-border">
                     📍
                   </div>
                   <div className="text-[11px]">
-                    <div className="font-extrabold uppercase opacity-65 tracking-wide">Location</div>
+                    <div className="font-extrabold uppercase tracking-wide hub-muted-title">Location</div>
                     <div className="font-bold">{event.location}</div>
                   </div>
                 </div>
@@ -311,7 +445,7 @@ export default function EventPageClient({ event }: EventPageClientProps) {
 
               {/* Progress counter for seat booking */}
               <div className="space-y-2.5">
-                <div className="flex justify-between text-xs font-bold opacity-75">
+                <div className="flex justify-between text-xs font-bold hub-muted-text">
                   <span>Capacity Details</span>
                   <span>
                     {isFull
@@ -319,15 +453,13 @@ export default function EventPageClient({ event }: EventPageClientProps) {
                       : `${registeredCount} / ${event.maxRegistrations || "Unlimited"} Seats`}
                   </span>
                 </div>
-                <div className={`w-full h-2 rounded-full overflow-hidden border ${
-                  isLight ? "bg-slate-100 border-slate-200/60" : "bg-black/40 border-white/5"
-                }`}>
+                <div className="w-full h-2 rounded-full overflow-hidden border hub-bar-container">
                   <div
                     style={{
                       width: event.maxRegistrations
                         ? `${Math.min((registeredCount / event.maxRegistrations) * 100, 100)}%`
                         : "5%",
-                      backgroundColor: isFull ? "#ef4444" : adjustedAccentColor,
+                      backgroundColor: isFull ? "#ef4444" : "var(--hub-accent-color)",
                     }}
                     className="h-full rounded-full transition-all duration-500"
                   />
@@ -335,8 +467,8 @@ export default function EventPageClient({ event }: EventPageClientProps) {
               </div>
 
               {/* Main about description text */}
-              <div className={`space-y-2.5 border-t pt-4 ${isLight ? "border-slate-200" : "border-white/5"}`}>
-                <h4 className="text-xs font-black uppercase tracking-widest opacity-65">About this Event</h4>
+              <div className="space-y-2.5 border-t pt-4 hub-border">
+                <h4 className="text-xs font-black uppercase tracking-widest hub-muted-title">About this Event</h4>
                 <p className="text-xs leading-relaxed opacity-85 font-medium whitespace-pre-wrap">
                   {event.description || "No description provided for this event."}
                 </p>
@@ -346,18 +478,12 @@ export default function EventPageClient({ event }: EventPageClientProps) {
 
           {/* Right interactive registration card: 5-span */}
           <div className="md:col-span-5">
-            <div
-              style={{
-                backgroundColor: cardBg,
-                borderColor: isLight ? "rgba(15, 23, 42, 0.08)" : "rgba(255, 255, 255, 0.08)",
-              }}
-              className="rounded-3xl border p-6 shadow-2xl space-y-4"
-            >
-              <div className={`space-y-1 pb-3 border-b ${isLight ? "border-slate-200" : "border-white/5"}`}>
-                <h3 className="text-sm font-extrabold uppercase tracking-widest opacity-65">
+            <div className="p-6 shadow-2xl space-y-4 hub-card">
+              <div className="space-y-1 pb-3 border-b hub-border">
+                <h3 className="text-sm font-extrabold uppercase tracking-widest hub-muted-title">
                   Registration
                 </h3>
-                <p className="text-[11px] font-bold leading-normal opacity-65">
+                <p className="text-[11px] font-bold leading-normal hub-muted-text">
                   Secure your seat instantly. Registration is 100% free.
                 </p>
               </div>
@@ -377,9 +503,9 @@ export default function EventPageClient({ event }: EventPageClientProps) {
                   event={event}
                   preview={false}
                   onSubmitSuccess={(ticket) => setRegisteredTicket(ticket)}
-                  primaryColor={adjustedAccentColor}
-                  cardBg={cardBg}
-                  textColor={textColor}
+                  primaryColor={derived.primaryColor}
+                  cardBg={derived.cardBg}
+                  textColor={derived.textColor}
                 />
               )}
             </div>
@@ -387,28 +513,20 @@ export default function EventPageClient({ event }: EventPageClientProps) {
         </div>
 
         {/* Centered Brand Watermark Footer */}
-        <div className={`text-center pt-8 pb-2 opacity-30 select-none ${isLight ? "text-slate-600" : "text-slate-400"}`}>
+        <div className="text-center pt-8 pb-2 hub-muted-text select-none">
           <span className="text-[10px] font-mono tracking-wider uppercase">
-            Powered by <strong className={`font-extrabold ${isLight ? "text-slate-900" : "text-white"}`}>EventsPlug</strong>
+            Powered by <strong className="font-extrabold hub-footer-strong">EventsPlug</strong>
           </span>
         </div>
       </div>
 
       {/* Ticket Success Confirmation Modal Dialog */}
       {registeredTicket && (
-        <div className={`fixed inset-0 z-50 backdrop-blur-md flex items-center justify-center p-4 ${
-          isLight ? "bg-slate-900/50" : "bg-[#06080f]/80"
-        }`}>
-          <div
-            style={{
-              backgroundColor: cardBg,
-              borderColor: isLight ? "rgba(15, 23, 42, 0.15)" : "rgba(255, 255, 255, 0.1)",
-            }}
-            className="rounded-3xl border p-8 max-w-md w-full shadow-2xl text-center space-y-6 relative overflow-hidden animate-in fade-in zoom-in-95 duration-200"
-          >
+        <div className="fixed inset-0 z-50 backdrop-blur-md flex items-center justify-center p-4 bg-black/60">
+          <div className="p-8 max-w-md w-full text-center space-y-6 relative overflow-hidden animate-in fade-in zoom-in-95 duration-200 hub-card">
             {/* Glowing accent border */}
             <div
-              style={{ backgroundColor: adjustedAccentColor }}
+              style={{ backgroundColor: "var(--hub-accent-color)" }}
               className="absolute top-0 left-0 right-0 h-1.5"
             />
 
@@ -417,7 +535,7 @@ export default function EventPageClient({ event }: EventPageClientProps) {
             </div>
 
             <div className="space-y-2">
-              <h2 className={`text-lg font-black tracking-tight uppercase ${isLight ? "text-slate-900" : "text-white"}`}>Registration Confirmed!</h2>
+              <h2 className="text-lg font-black tracking-tight uppercase">Registration Confirmed!</h2>
               <p className="text-xs leading-relaxed font-medium opacity-75">
                 You are registered for <strong className="text-current font-black">{event.title}</strong>.<br />
                 A confirmation has been logged to our registers.
@@ -430,9 +548,7 @@ export default function EventPageClient({ event }: EventPageClientProps) {
                 href={buildCalendarUrl(event)}
                 target="_blank"
                 rel="noopener noreferrer"
-                className={`inline-flex items-center justify-center gap-1.5 px-4 py-3 rounded-xl font-extrabold text-[10px] uppercase border transition-colors ${
-                  isLight ? "bg-slate-100 hover:bg-slate-200 text-slate-800 border-slate-200" : "bg-white/5 hover:bg-white/10 text-white border-white/5"
-                }`}
+                className="inline-flex items-center justify-center gap-1.5 px-4 py-3 rounded-xl font-extrabold text-[10px] uppercase border transition-colors hub-theme-toggle"
               >
                 📅 Calendar
               </a>
@@ -441,9 +557,9 @@ export default function EventPageClient({ event }: EventPageClientProps) {
                 target="_blank"
                 rel="noopener noreferrer"
                 style={{
-                  backgroundColor: `${adjustedAccentColor}15`,
-                  color: adjustedAccentColor,
-                  borderColor: `${adjustedAccentColor}30`,
+                  backgroundColor: `${derived.primaryColor}15`,
+                  color: derived.primaryColor,
+                  borderColor: `${derived.primaryColor}30`,
                 }}
                 className="inline-flex items-center justify-center gap-1.5 px-4 py-3 rounded-xl border font-extrabold text-[10px] uppercase transition-colors hover:opacity-90"
               >
@@ -457,8 +573,7 @@ export default function EventPageClient({ event }: EventPageClientProps) {
                 // Force a page refresh to update capacity counters in background
                 if (typeof window !== "undefined") window.location.reload();
               }}
-              style={{ backgroundColor: adjustedAccentColor }}
-              className="w-full inline-flex items-center justify-center px-6 py-3 rounded-xl text-white font-extrabold text-xs shadow-lg hover:opacity-95 active:scale-[0.98] transition-all"
+              className="w-full inline-flex items-center justify-center px-6 py-3 rounded-xl text-white font-extrabold text-xs transition-all hub-btn-primary"
             >
               Done
             </button>

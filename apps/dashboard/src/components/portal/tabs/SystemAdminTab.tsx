@@ -227,7 +227,7 @@ export default function SystemAdminTab() {
                 <thead>
                   <tr className="border-b border-border-main text-[10px] font-extrabold uppercase tracking-wider text-text-secondary">
                     <th className="py-3 px-4">Theme Info</th>
-                    <th className="py-3 px-4">CSS custom variables map</th>
+                    <th className="py-3 px-4">Semantic Intent Parameters</th>
                     <th className="py-3 px-4">Monetization status</th>
                     <th className="py-3 px-4 text-right">Scope</th>
                   </tr>
@@ -244,28 +244,24 @@ export default function SystemAdminTab() {
                       <td className="py-4 px-4 font-mono text-[9px] leading-relaxed">
                         <div className="grid grid-cols-2 gap-x-4 gap-y-1">
                           <div>
-                            <span className="text-text-secondary font-semibold">primary:</span>{" "}
-                            <span style={{ color: theme.cssVariables?.["--primary-color"] }} className="font-bold">
-                              {theme.cssVariables?.["--primary-color"] || "#6366f1"}
-                            </span>
+                            <span className="text-text-secondary font-semibold">mode:</span>{" "}
+                            <span className="font-bold text-text-primary">{theme.baseMode}</span>
                           </div>
                           <div>
-                            <span className="text-text-secondary font-semibold">bg:</span>{" "}
-                            <span style={{ color: theme.cssVariables?.["--bg-color"] }} className="font-bold">
-                              {theme.cssVariables?.["--bg-color"] || "#0d1321"}
-                            </span>
+                            <span className="text-text-secondary font-semibold">accent:</span>{" "}
+                            <span className="font-bold text-text-primary">H:{theme.accentHue}° / C:{theme.accentChroma}</span>
                           </div>
                           <div>
-                            <span className="text-text-secondary font-semibold">text:</span>{" "}
-                            <span style={{ color: theme.cssVariables?.["--text-color"] }} className="font-bold">
-                              {theme.cssVariables?.["--text-color"] || "#f8fafc"}
-                            </span>
+                            <span className="text-text-secondary font-semibold">surface:</span>{" "}
+                            <span className="font-bold text-text-primary">{theme.surfaceTone}</span>
                           </div>
                           <div>
-                            <span className="text-text-secondary font-semibold">card-bg:</span>{" "}
-                            <span style={{ color: theme.cssVariables?.["--card-bg"] }} className="font-bold">
-                              {theme.cssVariables?.["--card-bg"] || "#1e293b"}
-                            </span>
+                            <span className="text-text-secondary font-semibold">skin:</span>{" "}
+                            <span className="font-bold text-text-primary">{theme.skinId}</span>
+                          </div>
+                          <div className="col-span-2">
+                            <span className="text-text-secondary font-semibold">pairing:</span>{" "}
+                            <span className="font-bold text-text-primary">{theme.fontPairingId}</span>
                           </div>
                         </div>
                       </td>
