@@ -1072,14 +1072,134 @@ class EventWidget extends HTMLElement {
     });
   }
 
-  private applyThemeForEventOrOrg(event: any) {
-    const DEFAULT_THEME_VARIABLES = {
-      '--primary-color': '#6366f1',
-      '--bg-color': '#0d1321',
-      '--text-color': '#f8fafc',
-      '--card-bg': '#1e293b'
+  private deriveThemeVariables(theme: any, mode: 'dark' | 'light'): any {
+    // If the theme is legacy or missing, use system defaults
+    let baseMode = theme?.baseMode;
+    let accentHue = theme?.accentHue;
+    let accentChroma = theme?.accentChroma;
+    let surfaceTone = theme?.surfaceTone;
+    let skinId = theme?.skinId;
+    let fontPairingId = theme?.fontPairingId;
+
+    const isLegacy = (accentHue === undefined || accentHue === null);
+
+    if (isLegacy) {
+      // Check if theme has legacy cssVariables
+      if (theme?.cssVariables) {
+        return theme.cssVariables;
+      }
+      // System defaults fallback
+      baseMode = 'dark';
+      accentHue = 250;
+      accentChroma = 0.18;
+      surfaceTone = 'mid';
+      skinId = 'frosted';
+      fontPairingId = 'inter-inter';
+    } else {
+      baseMode = baseMode || 'dark';
+      accentHue = typeof accentHue === 'number' ? accentHue : 250;
+      accentChroma = typeof accentChroma === 'number' ? accentChroma : 0.18;
+      surfaceTone = surfaceTone || 'mid';
+      skinId = skinId || 'frosted';
+      fontPairingId = fontPairingId || 'inter-inter';
+    }
+
+    // Standard RGB and HEX conversion helpers
+    const hexToRgb = (hex: string) => {
+      const cleanHex = hex.replace(/^#/, '');
+      const bigint = parseInt(cleanHex, 16);
+      return { r: (bigint >> 16) & 255, g: (bigint >> 8) & 255, b: bigint & 255 };
     };
 
+    const rgbToHex = (r: number, g: number, b: number) => {
+      const clamp = (val: number) => Math.max(0, Math.min(255, Math.round(val)));
+      return '#' + ((1 << 24) + (clamp(r) << 16) + (clamp(g) << 8) + clamp(b)).toString(16).slice(1);
+    };
+
+    const getLuminance = (r: number, g: number, b: number) => {
+      const a = [r, g, b].map((v) => {
+        v /= 255;
+        return v <= 0.04045 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
+      });
+      return a[0] * 0.2126 + a[1] * 0.7152 + a[2] * 0.0722;
+    };
+
+    const getContrastRatio = (hex1: string, hex2: string) => {
+      const rgb1 = hexToRgb(hex1);
+      const rgb2 = hexToRgb(hex2);
+      const l1 = getLuminance(rgb1.r, rgb1.g, rgb1.b);
+      const l2 = getLuminance(rgb2.r, rgb2.g, rgb2.b);
+      return (Math.max(l1, l2) + 0.05) / (Math.min(l1, l2) + 0.05);
+    };
+
+    const oklchToRgb = (l: number, c: number, h: number) => {
+      const hRad = (h * Math.PI) / 180;
+      const a = c * Math.cos(hRad);
+      const b = c * Math.sin(hRad);
+      const l_ = l + 0.3963377774 * a + 0.2158037573 * b;
+      const m_ = l - 0.1055613458 * a - 0.0638541728 * b;
+      const s_ = l - 0.0894841775 * a - 1.2914855480 * b;
+      const lLinear = l_ * l_ * l_;
+      const mLinear = m_ * m_ * m_;
+      const sLinear = s_ * s_ * s_;
+      const rL = +4.0767416621 * lLinear - 3.3077115913 * mLinear + 0.2309699292 * sLinear;
+      const gL = -1.2684380046 * lLinear + 2.6097574011 * mLinear - 0.3413193965 * sLinear;
+      const bL = -0.0041960863 * lLinear - 0.7034186142 * mLinear + 1.7076147004 * sLinear;
+      const gamma = (val: number) => val <= 0.0031308 ? 12.92 * val : 1.055 * Math.pow(val, 1 / 2.4) - 0.055;
+      return {
+        r: Math.max(0, Math.min(255, Math.round(gamma(rL) * 255))),
+        g: Math.max(0, Math.min(255, Math.round(gamma(gL) * 255))),
+        b: Math.max(0, Math.min(255, Math.round(gamma(bL) * 255)))
+      };
+    };
+
+    const oklchToHex = (l: number, c: number, h: number) => {
+      const rgb = oklchToRgb(l, c, h);
+      return rgbToHex(rgb.r, rgb.g, rgb.b);
+    };
+
+    // background tone
+    let bgL = 0.10, bgC = 0.012;
+    if (mode === 'light') {
+      bgL = surfaceTone === 'soft' ? 0.98 : surfaceTone === 'mid' ? 0.96 : 0.94;
+      bgC = surfaceTone === 'soft' ? 0.005 : surfaceTone === 'mid' ? 0.008 : 0.012;
+    } else {
+      bgL = surfaceTone === 'deep' ? 0.06 : surfaceTone === 'mid' ? 0.10 : 0.14;
+      bgC = surfaceTone === 'deep' ? 0.008 : surfaceTone === 'mid' ? 0.012 : 0.016;
+    }
+    const bgColor = oklchToHex(bgL, bgC, accentHue);
+
+    // contrast-adjusted accent
+    let currentL = mode === 'dark' ? 0.65 : 0.50;
+    let primaryColor = oklchToHex(currentL, accentChroma, accentHue);
+    let ratio = getContrastRatio(primaryColor, bgColor);
+    const bgLuminance = getLuminance(hexToRgb(bgColor).r, hexToRgb(bgColor).g, hexToRgb(bgColor).b);
+    const shouldLighten = bgLuminance < 0.5;
+    
+    let attempts = 0;
+    while (ratio < 4.5 && attempts < 50) {
+      currentL = shouldLighten ? Math.min(1.0, currentL + 0.02) : Math.max(0.0, currentL - 0.02);
+      primaryColor = oklchToHex(currentL, accentChroma, accentHue);
+      ratio = getContrastRatio(primaryColor, bgColor);
+      attempts++;
+    }
+
+    // textColor and cardBg
+    let textColor = mode === 'dark' ? oklchToHex(0.98, 0.004, accentHue) : oklchToHex(0.15, 0.012, accentHue);
+    let cardBg = mode === 'dark'
+      ? (skinId === 'frosted' ? 'rgba(255, 255, 255, 0.045)' : 'rgba(255, 255, 255, 0.025)')
+      : (skinId === 'sharp' ? 'rgba(255, 255, 255, 0.9)' : 'rgba(255, 255, 255, 0.75)');
+
+    return {
+      '--primary-color': primaryColor,
+      '--primary-contrast-color': shouldLighten ? '#ffffff' : '#0f172a',
+      '--bg-color': bgColor,
+      '--text-color': textColor,
+      '--card-bg': cardBg,
+    };
+  }
+
+  private applyThemeForEventOrOrg(event: any) {
     // Cascade Hierarchy: Event Override -> Org Default -> Static Constants Fallback
     const theme = event?.theme || this.organization?.defaultTheme;
 
@@ -1088,7 +1208,16 @@ class EventWidget extends HTMLElement {
     if (theme?.slug === 'magic-adaptive') {
       cssVariables = this.harvestHostBranding();
     } else {
-      cssVariables = theme?.cssVariables || DEFAULT_THEME_VARIABLES;
+      const baseMode = theme?.baseMode || 'dark';
+      let mode: 'dark' | 'light' = 'dark';
+      if (baseMode === 'light') {
+        mode = 'light';
+      } else if (baseMode === 'auto' || baseMode === 'adaptive') {
+        if (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) {
+          mode = 'light';
+        }
+      }
+      cssVariables = this.deriveThemeVariables(theme, mode);
     }
 
     this.applyThemeStyle(cssVariables);
