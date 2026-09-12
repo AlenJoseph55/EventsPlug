@@ -5,9 +5,9 @@ import { validateForm } from '@eventflow/validators';
 class EventWidget extends HTMLElement {
   private shadow: ShadowRoot;
   private apiBase: string = 'http://localhost:5001/api';
-  private lastLoadedEvent: any = null;
   private organization: any = null;
   private isMounted = false;
+
  
   constructor() {
     super();
@@ -15,14 +15,17 @@ class EventWidget extends HTMLElement {
   }
 
   static get observedAttributes() {
-    return ['layout', 'limit', 'org'];
+    return ['layout', 'limit', 'org', 'event-id'];
   }
 
   attributeChangedCallback(_name: string, oldValue: string, newValue: string) {
     if (!this.isMounted || !this.shadowRoot) return;
     if (oldValue !== newValue) {
+      const eventId = this.getAttribute('event-id');
       const orgSlug = this.getAttribute('org') || '';
-      if (orgSlug) {
+      if (eventId) {
+        this.fetchAndRenderSingleEvent(eventId);
+      } else if (orgSlug) {
         this.fetchAndRenderEvents(orgSlug);
       }
     }
@@ -30,11 +33,12 @@ class EventWidget extends HTMLElement {
  
   connectedCallback() {
     this.isMounted = true;
+    const eventId = this.getAttribute('event-id');
     const orgSlug = this.getAttribute('org');
-    if (!orgSlug) {
+    if (!eventId && !orgSlug) {
       this.shadow.innerHTML = `
         <div style="color: #ef4444; padding: 15px; border: 1px solid #ef4444; border-radius: 8px; font-weight: 600;">
-          Error: Missing required "org" attribute on &lt;event-widget&gt; element.
+          Error: Missing required "event-id" or "org" attribute on &lt;events-plug-widget&gt; element.
         </div>
       `;
       return;
@@ -43,7 +47,11 @@ class EventWidget extends HTMLElement {
     // Defer rendering slightly to let async host stylesheets settle
     requestAnimationFrame(() => {
       this.renderStructure();
-      this.fetchAndRenderEvents(orgSlug);
+      if (eventId) {
+        this.fetchAndRenderSingleEvent(eventId);
+      } else if (orgSlug) {
+        this.fetchAndRenderEvents(orgSlug);
+      }
     });
   }
 
@@ -698,10 +706,6 @@ class EventWidget extends HTMLElement {
     const closeBtn = this.shadow.getElementById('modal-close-btn') as HTMLButtonElement;
     closeBtn.addEventListener('click', () => {
       modal.classList.remove('active');
-      // Revert back to organization default theme
-      if (this.lastLoadedEvent) {
-        this.applyThemeForEventOrOrg(this.lastLoadedEvent);
-      }
     });
   }
 
@@ -728,16 +732,12 @@ class EventWidget extends HTMLElement {
         return;
       }
 
-      // Populate caching context and cascade branding styles
-      if (events[0]) {
-        this.lastLoadedEvent = events[0];
-        this.applyThemeForEventOrOrg(events[0]);
-      }
-
       // Resolve layout cascade
+
       const layoutAttr = this.getAttribute('layout');
-      const layout = layoutAttr || this.organization?.defaultLayout || 'GRID';
+      const layout = layoutAttr || 'GRID';
       const cleanLayout = String(layout).toUpperCase(); // GRID, LIST, or CAROUSEL
+
 
       // Update widget-container layout class
       const container = this.shadow.querySelector('.widget-container');
@@ -801,6 +801,9 @@ class EventWidget extends HTMLElement {
 
         const card = document.createElement('div');
         card.className = 'event-card';
+        const eventAccent = event.accentColor || '#3b82f6';
+        card.style.setProperty('--primary', eventAccent);
+
         card.innerHTML = `
           ${posterHTML}
           <div class="event-details">
@@ -876,27 +879,128 @@ class EventWidget extends HTMLElement {
     return div.innerHTML;
   }
 
-  private openRegistrationForm(event: any) {
-    const modal = this.shadow.getElementById('reg-modal') as HTMLElement;
-    const titleEl = this.shadow.getElementById('modal-title') as HTMLElement;
-    const subtitleEl = this.shadow.getElementById('modal-subtitle') as HTMLElement;
-    const contentEl = this.shadow.getElementById('modal-content') as HTMLElement;
+  private async fetchAndRenderSingleEvent(eventId: string) {
+    const loader = this.shadow.getElementById('events-loader') as HTMLElement;
+    const grid = this.shadow.getElementById('events-grid') as HTMLElement;
+    const errorEl = this.shadow.getElementById('widget-error') as HTMLElement;
 
-    // Apply event specific override theme when modal opens!
-    this.applyThemeForEventOrOrg(event);
+    try {
+      const response = await fetch(`${this.apiBase}/events/${eventId}/public`);
+      if (!response.ok) {
+        throw new Error('Event not found or failed to load.');
+      }
 
-    titleEl.textContent = `Register: ${event.title}`;
-    subtitleEl.textContent = `Fill out the required information below to confirm your seat.`;
+      const event = await response.json();
+      loader.style.display = 'none';
+      grid.style.display = 'block';
+      grid.style.maxWidth = '640px';
+      grid.style.margin = '0 auto';
 
+      const eventAccent = event.accentColor || '#3b82f6';
+      const container = this.shadow.querySelector('.widget-container') as HTMLElement;
+      if (container) {
+        container.style.setProperty('--primary', eventAccent);
+      }
+
+      // Check status CLOSED
+      if (event.status === 'CLOSED') {
+        grid.innerHTML = `
+          <div class="event-card" style="padding: 40px 24px; text-align: center; border-radius: 16px;">
+            <div style="display: inline-block; background: rgba(239, 68, 68, 0.15); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.3); padding: 4px 14px; border-radius: 9999px; font-size: 0.8rem; font-weight: 700; text-transform: uppercase; margin-bottom: 16px;">Registration Closed</div>
+            <h2 class="event-title" style="font-size: 1.5rem; margin-bottom: 10px;">${this.escapeHtml(event.title)}</h2>
+            <p class="event-desc" style="color: var(--text-muted); font-size: 0.95rem; margin: 0;">Registration is closed for this event.</p>
+          </div>
+        `;
+        return;
+      }
+
+      // Check capacity full
+      const isFull = event.maxRegistrations !== null && (event.registrationCount >= event.maxRegistrations);
+      if (isFull) {
+        grid.innerHTML = `
+          <div class="event-card" style="padding: 40px 24px; text-align: center; border-radius: 16px;">
+            <div style="display: inline-block; background: rgba(234, 179, 8, 0.15); color: #eab308; border: 1px solid rgba(234, 179, 8, 0.3); padding: 4px 14px; border-radius: 9999px; font-size: 0.8rem; font-weight: 700; text-transform: uppercase; margin-bottom: 16px;">Event Full</div>
+            <h2 class="event-title" style="font-size: 1.5rem; margin-bottom: 10px;">${this.escapeHtml(event.title)}</h2>
+            <p class="event-desc" style="color: var(--text-muted); font-size: 0.95rem; margin: 0;">This event has reached maximum capacity (${event.registrationCount} / ${event.maxRegistrations}).</p>
+          </div>
+        `;
+        return;
+      }
+
+      // Render inline registration form directly
+      this.renderInlineEventForm(event, grid);
+    } catch (err: any) {
+      loader.style.display = 'none';
+      errorEl.textContent = `Error: ${err.message || 'Unable to load event.'}`;
+      errorEl.style.display = 'block';
+    }
+  }
+
+  private renderInlineEventForm(event: any, container: HTMLElement) {
     const fields = event.formFields || [];
-    if (fields.length === 0) {
-      contentEl.innerHTML = `<div style="color: var(--error);">Error: This event does not have any registration fields configured.</div>`;
-      modal.classList.add('active');
-      return;
+    const dateStr = event.date
+      ? new Date(event.date).toLocaleDateString(undefined, {
+          weekday: 'short',
+          month: 'short',
+          day: 'numeric',
+          year: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit',
+        })
+      : null;
+
+    let posterHTML = '';
+    if (event.posterUrl) {
+      posterHTML = `<img class="event-poster" src="${event.posterUrl}" alt="${this.escapeHtml(event.title)} poster" style="max-height: 220px;"/>`;
     }
 
-    // Build form inputs dynamically
+    container.innerHTML = `
+      <div class="event-card" style="border-radius: 16px; overflow: hidden;">
+        ${posterHTML}
+        <div style="padding: 24px 28px;">
+          <h2 class="event-title" style="font-size: 1.6rem; margin: 0 0 8px 0;">${this.escapeHtml(event.title)}</h2>
+          ${dateStr ? `<div style="font-size: 0.85rem; color: var(--primary); font-weight: 600; margin-bottom: 6px;">📅 ${dateStr}</div>` : ''}
+          ${event.location ? `<div style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 16px;">📍 ${this.escapeHtml(event.location)}</div>` : ''}
+          ${event.description ? `<p class="event-desc" style="margin-bottom: 24px; font-size: 0.95rem; line-height: 1.6;">${this.escapeHtml(event.description)}</p>` : ''}
+          <div style="border-top: 1px solid var(--border-color); padding-top: 24px;">
+            <h3 style="font-size: 1.15rem; font-weight: 700; color: var(--text-main); margin: 0 0 6px 0;">
+              ${this.escapeHtml(event.registrationTitle || 'Reserve your place')}
+            </h3>
+            <p style="font-size: 0.85rem; color: var(--text-muted); margin: 0 0 20px 0;">
+              ${this.escapeHtml(event.registrationDescription || 'Complete the form below to confirm your spot.')}
+            </p>
+            <div id="inline-form-container">
+              ${this.buildRegistrationFormHtml(event, fields)}
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+
+    const form = this.shadow.getElementById('registration-form') as HTMLFormElement;
+    if (form) {
+      form.addEventListener('submit', (e) => this.handleFormSubmit(e, event, fields));
+    }
+  }
+
+  private buildRegistrationFormHtml(event: any, fields: any[]) {
+    const priceText = event.price && event.price > 0
+      ? (event.currency === 'INR' ? `₹${(event.price / 100).toFixed(2)}` : `$${(event.price / 100).toFixed(2)}`)
+      : 'FREE';
+
     let formHTML = `<form id="registration-form" novalidate>`;
+
+    if (event.paymentGateway === 'MANUAL_UPI') {
+      formHTML += `
+        <div style="background: var(--bg-input); border: 1px solid var(--border-color); border-radius: 12px; padding: 16px; margin-bottom: 20px; text-align: center;">
+          <div style="font-size: 0.85rem; font-weight: 700; color: var(--text-main); margin-bottom: 8px;">Scan & Pay via any UPI App</div>
+          ${event.upiQrUrl ? `<img src="${event.upiQrUrl}" style="width: 140px; height: 140px; border-radius: 8px; margin: 0 auto 10px auto; display: block;" />` : ''}
+          <div style="font-family: monospace; font-size: 0.9rem; color: var(--primary); font-weight: 700;">${this.escapeHtml(event.upiId || 'organizer@upi')}</div>
+          <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 4px;">Pay exact amount: ${priceText}</div>
+        </div>
+      `;
+    }
+
     fields.forEach((field: any) => {
       const isReq = field.required;
       const safeLabel = this.escapeHtml(field.label);
@@ -935,7 +1039,6 @@ class EventWidget extends HTMLElement {
           </div>
         `;
       } else {
-        // text, email, number
         inputHTML = `<input class="form-control" type="${fType}" name="${field.id}" placeholder="${safePlaceholder}" ${isReq ? 'required' : ''}/>`;
       }
 
@@ -948,12 +1051,46 @@ class EventWidget extends HTMLElement {
       `;
     });
 
+    if (event.paymentGateway === 'MANUAL_UPI') {
+      formHTML += `
+        <div class="form-group">
+          <label class="form-label">UPI UTR / Transaction Reference ID <span class="required-indicator">*</span></label>
+          <input class="form-control" type="text" name="_utrRef" placeholder="12-digit UPI UTR Number (e.g. 321894029104)" required />
+        </div>
+      `;
+    }
+
     formHTML += `
       <div id="form-error-summary" style="display: none; color: var(--error); font-size: 0.9rem; font-weight: 600; margin-bottom: 20px;"></div>
-      <button type="submit" id="submit-reg-btn" class="btn-register">Confirm Registration</button>
+      <button type="submit" id="submit-reg-btn" class="btn-register">${event.price > 0 ? `Pay ${priceText} & Confirm` : (event.registrationButtonLabel || 'Confirm Registration')}</button>
     </form>`;
 
-    contentEl.innerHTML = formHTML;
+    return formHTML;
+  }
+
+  private openRegistrationForm(event: any) {
+    const modal = this.shadow.getElementById('reg-modal') as HTMLElement;
+    const titleEl = this.shadow.getElementById('modal-title') as HTMLElement;
+    const subtitleEl = this.shadow.getElementById('modal-subtitle') as HTMLElement;
+    const contentEl = this.shadow.getElementById('modal-content') as HTMLElement;
+
+    const priceText = event.price && event.price > 0
+      ? (event.currency === 'INR' ? `₹${(event.price / 100).toFixed(2)}` : `$${(event.price / 100).toFixed(2)}`)
+      : 'FREE';
+
+    titleEl.textContent = `Register: ${event.title} (${priceText})`;
+    subtitleEl.textContent = event.price > 0 
+      ? `Fill out the required information and complete your ${priceText} payment.`
+      : `Fill out the required information below to confirm your seat.`;
+
+    const fields = event.formFields || [];
+    if (fields.length === 0) {
+      contentEl.innerHTML = `<div style="color: var(--error);">Error: This event does not have any registration fields configured.</div>`;
+      modal.classList.add('active');
+      return;
+    }
+
+    contentEl.innerHTML = this.buildRegistrationFormHtml(event, fields);
     modal.classList.add('active');
 
     // Bind form submit
@@ -1025,8 +1162,10 @@ class EventWidget extends HTMLElement {
       this.displaySuccessState(event);
 
       // 5. Dynamic Counter update in background!
-      const orgSlug = this.getAttribute('org')!;
-      this.fetchAndRenderEvents(orgSlug);
+      const orgSlug = this.getAttribute('org');
+      if (orgSlug) {
+        this.fetchAndRenderEvents(orgSlug);
+      }
 
     } catch (err: any) {
       submitBtn.disabled = false;
@@ -1037,15 +1176,18 @@ class EventWidget extends HTMLElement {
   }
 
   private displaySuccessState(event: any) {
-    const contentEl = this.shadow.getElementById('modal-content') as HTMLElement;
-    const titleEl = this.shadow.getElementById('modal-title') as HTMLElement;
-    const subtitleEl = this.shadow.getElementById('modal-subtitle') as HTMLElement;
-
-    titleEl.textContent = 'Success!';
-    subtitleEl.textContent = 'Your registration is complete.';
+    const inlineContainer = this.shadow.getElementById('inline-form-container');
+    const contentEl = inlineContainer || (this.shadow.getElementById('modal-content') as HTMLElement);
+    
+    if (!inlineContainer) {
+      const titleEl = this.shadow.getElementById('modal-title') as HTMLElement;
+      const subtitleEl = this.shadow.getElementById('modal-subtitle') as HTMLElement;
+      if (titleEl) titleEl.textContent = 'Success!';
+      if (subtitleEl) subtitleEl.textContent = 'Your registration is complete.';
+    }
 
     contentEl.innerHTML = `
-      <div class="success-overlay">
+      <div class="success-overlay" style="padding: 32px 16px; text-align: center;">
         <div class="checkmark-circle">
           <svg viewBox="0 0 52 52">
             <polyline points="14,27 22,35 38,17"></polyline>
@@ -1054,326 +1196,28 @@ class EventWidget extends HTMLElement {
         <h3 class="success-title">You're Registered!</h3>
         <p class="success-message">
           Awesome! You have successfully secured your spot for <strong>${this.escapeHtml(event.title)}</strong>. 
-          A confirmation record has been saved. We look forward to seeing you at ${this.escapeHtml(event.location)}!
+          A confirmation record has been saved. We look forward to seeing you at ${this.escapeHtml(event.location || 'the event')}!
         </p>
-        <button id="success-close-btn" class="btn-register" style="max-width: 200px;">Close Window</button>
+        ${!inlineContainer ? '<button id="success-close-btn" class="btn-register" style="max-width: 200px;">Close Window</button>' : ''}
       </div>
     `;
 
-    // Bind Close Button inside Success State
-    const modal = this.shadow.getElementById('reg-modal') as HTMLElement;
-    const successCloseBtn = this.shadow.getElementById('success-close-btn') as HTMLButtonElement;
-    successCloseBtn.addEventListener('click', () => {
-      modal.classList.remove('active');
-      // Revert back to organization default theme
-      if (this.lastLoadedEvent) {
-        this.applyThemeForEventOrOrg(this.lastLoadedEvent);
-      }
-    });
-  }
-
-  private deriveThemeVariables(theme: any, mode: 'dark' | 'light'): any {
-    // If the theme is legacy or missing, use system defaults
-    let baseMode = theme?.baseMode;
-    let accentHue = theme?.accentHue;
-    let accentChroma = theme?.accentChroma;
-    let surfaceTone = theme?.surfaceTone;
-    let skinId = theme?.skinId;
-    let fontPairingId = theme?.fontPairingId;
-
-    const isLegacy = (accentHue === undefined || accentHue === null);
-
-    if (isLegacy) {
-      // Check if theme has legacy cssVariables
-      if (theme?.cssVariables) {
-        return theme.cssVariables;
-      }
-      // System defaults fallback
-      baseMode = 'dark';
-      accentHue = 250;
-      accentChroma = 0.18;
-      surfaceTone = 'mid';
-      skinId = 'frosted';
-      fontPairingId = 'inter-inter';
-    } else {
-      baseMode = baseMode || 'dark';
-      accentHue = typeof accentHue === 'number' ? accentHue : 250;
-      accentChroma = typeof accentChroma === 'number' ? accentChroma : 0.18;
-      surfaceTone = surfaceTone || 'mid';
-      skinId = skinId || 'frosted';
-      fontPairingId = fontPairingId || 'inter-inter';
-    }
-
-    // Standard RGB and HEX conversion helpers
-    const hexToRgb = (hex: string) => {
-      const cleanHex = hex.replace(/^#/, '');
-      const bigint = parseInt(cleanHex, 16);
-      return { r: (bigint >> 16) & 255, g: (bigint >> 8) & 255, b: bigint & 255 };
-    };
-
-    const rgbToHex = (r: number, g: number, b: number) => {
-      const clamp = (val: number) => Math.max(0, Math.min(255, Math.round(val)));
-      return '#' + ((1 << 24) + (clamp(r) << 16) + (clamp(g) << 8) + clamp(b)).toString(16).slice(1);
-    };
-
-    const getLuminance = (r: number, g: number, b: number) => {
-      const a = [r, g, b].map((v) => {
-        v /= 255;
-        return v <= 0.04045 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
-      });
-      return a[0] * 0.2126 + a[1] * 0.7152 + a[2] * 0.0722;
-    };
-
-    const getContrastRatio = (hex1: string, hex2: string) => {
-      const rgb1 = hexToRgb(hex1);
-      const rgb2 = hexToRgb(hex2);
-      const l1 = getLuminance(rgb1.r, rgb1.g, rgb1.b);
-      const l2 = getLuminance(rgb2.r, rgb2.g, rgb2.b);
-      return (Math.max(l1, l2) + 0.05) / (Math.min(l1, l2) + 0.05);
-    };
-
-    const oklchToRgb = (l: number, c: number, h: number) => {
-      const hRad = (h * Math.PI) / 180;
-      const a = c * Math.cos(hRad);
-      const b = c * Math.sin(hRad);
-      const l_ = l + 0.3963377774 * a + 0.2158037573 * b;
-      const m_ = l - 0.1055613458 * a - 0.0638541728 * b;
-      const s_ = l - 0.0894841775 * a - 1.2914855480 * b;
-      const lLinear = l_ * l_ * l_;
-      const mLinear = m_ * m_ * m_;
-      const sLinear = s_ * s_ * s_;
-      const rL = +4.0767416621 * lLinear - 3.3077115913 * mLinear + 0.2309699292 * sLinear;
-      const gL = -1.2684380046 * lLinear + 2.6097574011 * mLinear - 0.3413193965 * sLinear;
-      const bL = -0.0041960863 * lLinear - 0.7034186142 * mLinear + 1.7076147004 * sLinear;
-      const gamma = (val: number) => val <= 0.0031308 ? 12.92 * val : 1.055 * Math.pow(val, 1 / 2.4) - 0.055;
-      return {
-        r: Math.max(0, Math.min(255, Math.round(gamma(rL) * 255))),
-        g: Math.max(0, Math.min(255, Math.round(gamma(gL) * 255))),
-        b: Math.max(0, Math.min(255, Math.round(gamma(bL) * 255)))
-      };
-    };
-
-    const oklchToHex = (l: number, c: number, h: number) => {
-      const rgb = oklchToRgb(l, c, h);
-      return rgbToHex(rgb.r, rgb.g, rgb.b);
-    };
-
-    // background tone
-    let bgL = 0.10, bgC = 0.012;
-    if (mode === 'light') {
-      bgL = surfaceTone === 'soft' ? 0.98 : surfaceTone === 'mid' ? 0.96 : 0.94;
-      bgC = surfaceTone === 'soft' ? 0.005 : surfaceTone === 'mid' ? 0.008 : 0.012;
-    } else {
-      bgL = surfaceTone === 'deep' ? 0.06 : surfaceTone === 'mid' ? 0.10 : 0.14;
-      bgC = surfaceTone === 'deep' ? 0.008 : surfaceTone === 'mid' ? 0.012 : 0.016;
-    }
-    const bgColor = oklchToHex(bgL, bgC, accentHue);
-
-    // contrast-adjusted accent
-    let currentL = mode === 'dark' ? 0.65 : 0.50;
-    let primaryColor = oklchToHex(currentL, accentChroma, accentHue);
-    let ratio = getContrastRatio(primaryColor, bgColor);
-    const bgLuminance = getLuminance(hexToRgb(bgColor).r, hexToRgb(bgColor).g, hexToRgb(bgColor).b);
-    const shouldLighten = bgLuminance < 0.5;
-    
-    let attempts = 0;
-    while (ratio < 4.5 && attempts < 50) {
-      currentL = shouldLighten ? Math.min(1.0, currentL + 0.02) : Math.max(0.0, currentL - 0.02);
-      primaryColor = oklchToHex(currentL, accentChroma, accentHue);
-      ratio = getContrastRatio(primaryColor, bgColor);
-      attempts++;
-    }
-
-    // textColor and cardBg
-    let textColor = mode === 'dark' ? oklchToHex(0.98, 0.004, accentHue) : oklchToHex(0.15, 0.012, accentHue);
-    let cardBg = mode === 'dark'
-      ? (skinId === 'frosted' ? 'rgba(255, 255, 255, 0.045)' : 'rgba(255, 255, 255, 0.025)')
-      : (skinId === 'sharp' ? 'rgba(255, 255, 255, 0.9)' : 'rgba(255, 255, 255, 0.75)');
-
-    return {
-      '--primary-color': primaryColor,
-      '--primary-contrast-color': shouldLighten ? '#ffffff' : '#0f172a',
-      '--bg-color': bgColor,
-      '--text-color': textColor,
-      '--card-bg': cardBg,
-    };
-  }
-
-  private applyThemeForEventOrOrg(event: any) {
-    // Cascade Hierarchy: Event Override -> Org Default -> Static Constants Fallback
-    const theme = event?.theme || this.organization?.defaultTheme;
-
-    let cssVariables;
-
-    if (theme?.slug === 'magic-adaptive') {
-      cssVariables = this.harvestHostBranding();
-    } else {
-      const baseMode = theme?.baseMode || 'dark';
-      let mode: 'dark' | 'light' = 'dark';
-      if (baseMode === 'light') {
-        mode = 'light';
-      } else if (baseMode === 'auto' || baseMode === 'adaptive') {
-        if (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) {
-          mode = 'light';
-        }
-      }
-      cssVariables = this.deriveThemeVariables(theme, mode);
-    }
-
-    this.applyThemeStyle(cssVariables);
-  }
-
-  private applyThemeStyle(cssVariables: any) {
-    const vars = Object.entries(cssVariables || {})
-      .map(([name, val]) => `${name}: ${val};`)
-      .join('\n');
-
-    let style = this.shadow.querySelector('#widget-theme-styles');
-    if (!style) {
-      style = document.createElement('style');
-      style.id = 'widget-theme-styles';
-      this.shadow.appendChild(style);
-    }
-    style.textContent = `:host { ${vars} }`;
-  }
-
-  private isColorDark(color: string): boolean {
-    try {
-      const canvas = document.createElement('canvas');
-      canvas.width = canvas.height = 1;
-      const ctx = canvas.getContext('2d');
-      if (!ctx) return true;
-      ctx.fillStyle = color;
-      ctx.fillRect(0, 0, 1, 1);
-      const [r, g, b] = ctx.getImageData(0, 0, 1, 1).data;
-      // Perceived luminance formula
-      return (0.299 * r + 0.587 * g + 0.114 * b) / 255 < 0.5;
-    } catch {
-      return true; // Fallback to dark
-    }
-  }
-
-  private isValidBrandColor(colorStr: string): boolean {
-    if (!colorStr) return false;
-    try {
-      const canvas = document.createElement('canvas');
-      canvas.width = canvas.height = 1;
-      const ctx = canvas.getContext('2d');
-      if (!ctx) return false;
-      ctx.fillStyle = colorStr;
-      ctx.fillRect(0, 0, 1, 1);
-      const [r, g, b, a] = ctx.getImageData(0, 0, 1, 1).data;
-      
-      // If transparent, reject
-      if (a < 0.1) return false;
-
-      // Reject absolute white / extremely light grays
-      if (r > 240 && g > 240 && b > 240) return false;
-
-      // Reject absolute black / extremely dark grays
-      if (r < 15 && g < 15 && b < 15) return false;
-
-      // Check if it's too grayscale (r, g, b are almost identical)
-      const max = Math.max(r, g, b);
-      const min = Math.min(r, g, b);
-      // If the difference between channel extremes is less than 15, it's grayscale
-      if (max - min < 15) return false;
-
-      return true;
-    } catch {
-      return false;
-    }
-  }
-
-  private harvestHostBranding(): any {
-    let primary = null;
-    let bg = null;
-
-    // 1. Try Meta Theme Color
-    const metaTheme = document.querySelector('meta[name="theme-color"]');
-    if (metaTheme?.getAttribute('content')) {
-      primary = metaTheme.getAttribute('content');
-    }
-
-    // 2. Try Host Global CSS Variables
-    if (!primary) {
-      const styles = window.getComputedStyle(document.documentElement);
-      const commonVars = ['--primary', '--primary-color', '--accent', '--brand-color'];
-      for (const prop of commonVars) {
-        const val = styles.getPropertyValue(prop).trim();
-        if (val && (val.startsWith('#') || val.startsWith('rgb') || val.startsWith('hsl'))) {
-          primary = val;
-          break;
-        }
+    // Bind Close Button inside Success State if in modal
+    if (!inlineContainer) {
+      const modal = this.shadow.getElementById('reg-modal') as HTMLElement;
+      const successCloseBtn = this.shadow.getElementById('success-close-btn') as HTMLButtonElement;
+      if (successCloseBtn && modal) {
+        successCloseBtn.addEventListener('click', () => {
+          modal.classList.remove('active');
+        });
       }
     }
-
-    // 3. Scan host elements for a valid brand color
-    if (!primary) {
-      // Find buttons, headers, links, and accented tags
-      const candidates = document.querySelectorAll('button, [class*="btn"], [class*="button"], h1, h2, a, strong');
-      for (const el of Array.from(candidates)) {
-        const computedStyles = window.getComputedStyle(el);
-        const bgc = computedStyles.backgroundColor;
-        const color = computedStyles.color;
-        
-        // Try background color first
-        if (bgc && bgc !== 'transparent' && bgc !== 'rgba(0, 0, 0, 0)') {
-          if (this.isValidBrandColor(bgc)) {
-            primary = bgc;
-            break;
-          }
-        }
-        
-        // Fallback to text color
-        if (color) {
-          if (this.isValidBrandColor(color)) {
-            primary = color;
-            break;
-          }
-        }
-      }
-    }
-
-    // 4. Sample background color traversing up from the widget element itself
-    let currentEl: HTMLElement | null = this;
-    while (currentEl && currentEl !== document.documentElement) {
-      const computedStyles = window.getComputedStyle(currentEl);
-      const bgc = computedStyles.backgroundColor;
-      if (bgc && bgc !== 'transparent' && bgc !== 'rgba(0, 0, 0, 0)') {
-        bg = bgc;
-        break;
-      }
-      currentEl = currentEl.parentElement;
-    }
-
-    if (!bg) {
-      const bodyBg = window.getComputedStyle(document.body).backgroundColor;
-      if (bodyBg && bodyBg !== 'transparent' && bodyBg !== 'rgba(0, 0, 0, 0)') {
-        bg = bodyBg;
-      }
-    }
-
-    const finalPrimary = primary || '#6366f1';
-    const finalBg = bg || '#0d1321';
-
-    const isBgDark = this.isColorDark(finalBg);
-    const textColor = isBgDark ? '#f8fafc' : '#0f172a';
-    const cardBg = isBgDark ? 'rgba(255, 255, 255, 0.04)' : 'rgba(0, 0, 0, 0.03)';
-
-    // Compute contrast color for the primary button (must be readable on finalPrimary background)
-    const isPrimaryDark = this.isColorDark(finalPrimary);
-    const primaryContrastColor = isPrimaryDark ? '#ffffff' : '#0f172a';
-
-    return {
-      '--primary-color': finalPrimary,
-      '--primary-contrast-color': primaryContrastColor,
-      '--bg-color': finalBg,
-      '--text-color': textColor,
-      '--card-bg': cardBg,
-    };
   }
 }
 
-// Register the custom element globally!
+// Register the custom elements globally!
 customElements.define('event-widget', EventWidget);
+if (!customElements.get('events-plug-widget')) {
+  customElements.define('events-plug-widget', class extends EventWidget {});
+}
+

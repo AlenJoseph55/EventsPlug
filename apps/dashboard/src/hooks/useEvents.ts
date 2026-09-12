@@ -10,6 +10,7 @@ export interface CustomField {
   label: string;
   placeholder?: string;
   required: boolean;
+  isIdentityField?: boolean;
   options: string[] | string;
   order: number;
 }
@@ -22,10 +23,16 @@ export interface EventData {
   date: string;
   location: string;
   posterUrl?: string;
-  status: "ACTIVE" | "INACTIVE" | "DRAFT";
+  status: "ACTIVE" | "INACTIVE" | "DRAFT" | "CLOSED";
   maxRegistrations?: number;
   templatePreset?: string;
   autoFitImage?: boolean | null;
+  isFeatured?: boolean;
+  registrationDeadline?: string;
+  registrationTitle?: string | null;
+  registrationDescription?: string | null;
+  registrationButtonLabel?: string | null;
+  formDensity?: "COMPACT" | "COMFORTABLE";
   formTemplateId?: string;
   themeId?: string | null;
   skinId?: string | null;
@@ -43,7 +50,7 @@ export function useEvents() {
   const queryClient = useQueryClient();
 
   // 1. Get Events list query
-  const eventsQuery = useQuery<EventData[]>({
+  const eventsQuery = useQuery<{ data: EventData[]; nextCursor?: string | null } | EventData[]>({
     queryKey: ["events"],
     queryFn: async () => {
       const res = await fetch(`${apiBase}/events`, {
@@ -133,7 +140,7 @@ export function useEvents() {
 
   // 5. Toggle status mutation
   const toggleStatusMutation = useMutation({
-    mutationFn: async ({ id, currentStatus }: { id: string; currentStatus: "ACTIVE" | "INACTIVE" | "DRAFT" }) => {
+    mutationFn: async ({ id, currentStatus }: { id: string; currentStatus: "ACTIVE" | "INACTIVE" | "DRAFT" | "CLOSED" }) => {
       const nextStatus = currentStatus === "ACTIVE" ? "INACTIVE" : "ACTIVE";
       const res = await fetch(`${apiBase}/events/${id}`, {
         method: "PATCH",
@@ -311,8 +318,13 @@ export function useEvents() {
     },
   });
 
+  const rawData = eventsQuery.data;
+  const list: EventData[] = Array.isArray(rawData)
+    ? rawData
+    : (rawData && Array.isArray((rawData as any).data) ? (rawData as any).data : []);
+
   return {
-    events: eventsQuery.data || [],
+    events: list,
     isLoading: eventsQuery.isLoading,
     isError: eventsQuery.isError,
     refetchEvents: eventsQuery.refetch,

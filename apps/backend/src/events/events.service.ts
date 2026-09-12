@@ -7,23 +7,36 @@ import {
 import { PrismaService } from '../prisma.service';
 import { FORM_TEMPLATES } from '@eventflow/templates';
 import { OrganizationStatus } from '@eventflow/types';
-import { EventStatus } from '@prisma/client';
+import { EventStatus, RegistrationStatus } from '@prisma/client';
+import { WebhooksService } from '../webhooks/webhooks.service';
 
 export class CreateEventDto {
   title: string;
   description: string;
   date: string;
   location: string;
+  isFeatured?: boolean;
   posterUrl?: string;
   maxRegistrations?: number;
   templatePreset?: string; // Optional starter preset
   formFields?: any[]; // Dynamic custom fields array
-  autoFitImage?: boolean;
+  registrationDeadline?: string;
+  registrationTitle?: string;
+  registrationDescription?: string;
+  registrationButtonLabel?: string;
+  price?: number;
+  currency?: string;
+  paymentGateway?: any;
+  upiId?: string;
+  upiQrUrl?: string;
 }
 
 @Injectable()
 export class EventsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private webhooksService: WebhooksService,
+  ) {}
 
   async create(organizationId: string, dto: CreateEventDto) {
     // 1. Generate unique slug
@@ -51,6 +64,23 @@ export class EventsService {
       }
       uniqueSlug = `${baseSlug}-${counter}`;
       counter++;
+    }
+
+    // Check featured limit if isFeatured is true
+    if (dto.isFeatured) {
+      const activeFeaturedCount = await this.prisma.event.count({
+        where: {
+          organizationId,
+          isFeatured: true,
+          status: EventStatus.ACTIVE,
+        } as any,
+      });
+
+      if (activeFeaturedCount >= 3) {
+        throw new BadRequestException(
+          'An organization can have at most 3 featured events. Please unfeature another event first.',
+        );
+      }
     }
 
     // 2. Build initial form fields list
@@ -94,6 +124,7 @@ export class EventsService {
           placeholder: 'Enter your full name',
           required: true,
           order: 0,
+          isIdentityField: false,
         },
         {
           type: 'EMAIL',
@@ -101,6 +132,7 @@ export class EventsService {
           placeholder: 'you@example.com',
           required: true,
           order: 1,
+          isIdentityField: true,
         },
       ];
     }
@@ -118,8 +150,25 @@ export class EventsService {
         maxRegistrations: dto.maxRegistrations
           ? Number(dto.maxRegistrations)
           : null,
+        ...((dto.isFeatured !== undefined ? { isFeatured: !!dto.isFeatured } : {}) as any),
         status: EventStatus.DRAFT,
-        autoFitImage: dto.autoFitImage !== undefined ? dto.autoFitImage : null,
+        registrationDeadline: dto.registrationDeadline
+          ? new Date(dto.registrationDeadline)
+          : null,
+        registrationTitle: dto.registrationTitle !== undefined
+          ? this.cleanOptionalCopy(dto.registrationTitle, 80)
+          : undefined,
+        registrationDescription: dto.registrationDescription !== undefined
+          ? this.cleanOptionalCopy(dto.registrationDescription, 180)
+          : undefined,
+        registrationButtonLabel: dto.registrationButtonLabel !== undefined
+          ? this.cleanOptionalCopy(dto.registrationButtonLabel, 40)
+          : undefined,
+        price: dto.price ? Number(dto.price) : 0,
+        currency: dto.currency || 'USD',
+        paymentGateway: dto.paymentGateway || 'NONE',
+        upiId: dto.upiId || null,
+        upiQrUrl: dto.upiQrUrl || null,
         formFields: {
           create: fieldsData,
         },
@@ -135,12 +184,6 @@ export class EventsService {
   async findByOrg(orgSlug: string) {
     const org = await this.prisma.organization.findUnique({
       where: { slug: orgSlug },
-      include: {
-        defaultTheme: true,
-        hubTheme: true,
-        defaultSkin: true,
-        hubSkin: true,
-      },
     });
 
     if (!org) {
@@ -158,8 +201,6 @@ export class EventsService {
         formFields: {
           orderBy: { order: 'asc' },
         },
-        theme: true,
-        skin: true,
         _count: {
           select: { registrations: true },
         },
@@ -169,10 +210,18 @@ export class EventsService {
     return { organization: org, events };
   }
 
-  async findAllForAdmin(organizationId: string) {
-    return this.prisma.event.findMany({
+  async findAllForAdmin(
+    organizationId: string,
+    cursor?: string,
+    limit: number = 50,
+  ) {
+    const take = Math.min(Math.max(Number(limit) || 50, 1), 100);
+
+    const items = await this.prisma.event.findMany({
       where: { organizationId },
-      orderBy: { date: 'asc' },
+      orderBy: { createdAt: 'desc' },
+      take: take + 1,
+      ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
       include: {
         formFields: {
           orderBy: { order: 'asc' },
@@ -182,6 +231,17 @@ export class EventsService {
         },
       },
     });
+
+    let nextCursor: string | null = null;
+    if (items.length > take) {
+      const nextItem = items.pop();
+      nextCursor = nextItem!.id;
+    }
+
+    return {
+      data: items,
+      nextCursor,
+    };
   }
 
   async update(eventId: string, orgId: string, dto: any) {
@@ -201,18 +261,53 @@ export class EventsService {
     if (dto.date !== undefined) updateData.date = new Date(dto.date);
     if (dto.location !== undefined) updateData.location = dto.location;
     if (dto.posterUrl !== undefined) updateData.posterUrl = dto.posterUrl;
+    if (dto.accentColor !== undefined) updateData.accentColor = dto.accentColor;
     if (dto.maxRegistrations !== undefined) {
       updateData.maxRegistrations = dto.maxRegistrations
         ? Number(dto.maxRegistrations)
         : null;
     }
     if (dto.status !== undefined) updateData.status = dto.status;
-    if (dto.autoFitImage !== undefined) {
-      updateData.autoFitImage =
-        dto.autoFitImage === null ? null : !!dto.autoFitImage;
+    if (dto.registrationDeadline !== undefined) {
+      updateData.registrationDeadline = dto.registrationDeadline
+        ? new Date(dto.registrationDeadline)
+        : null;
     }
-    if (dto.skinId !== undefined) {
-      updateData.skinId = dto.skinId;
+    if (dto.registrationTitle !== undefined) {
+      updateData.registrationTitle = this.cleanOptionalCopy(dto.registrationTitle, 80);
+    }
+    if (dto.registrationDescription !== undefined) {
+      updateData.registrationDescription = this.cleanOptionalCopy(dto.registrationDescription, 180);
+    }
+    if (dto.registrationButtonLabel !== undefined) {
+      updateData.registrationButtonLabel = this.cleanOptionalCopy(dto.registrationButtonLabel, 40);
+    }
+    if (dto.price !== undefined) updateData.price = Number(dto.price);
+    if (dto.currency !== undefined) updateData.currency = dto.currency;
+    if (dto.paymentGateway !== undefined) updateData.paymentGateway = dto.paymentGateway;
+    if (dto.upiId !== undefined) updateData.upiId = dto.upiId;
+    if (dto.upiQrUrl !== undefined) updateData.upiQrUrl = dto.upiQrUrl;
+    if (dto.isFeatured !== undefined) (updateData as any).isFeatured = !!dto.isFeatured;
+
+    // Featured limit validation
+    const targetStatus = dto.status !== undefined ? dto.status : event.status;
+    const targetFeatured = dto.isFeatured !== undefined ? dto.isFeatured : (event as any).isFeatured;
+
+    if (targetFeatured && targetStatus === EventStatus.ACTIVE) {
+      const activeFeaturedCount = await this.prisma.event.count({
+        where: {
+          organizationId: orgId,
+          isFeatured: true,
+          status: EventStatus.ACTIVE,
+          NOT: { id: eventId },
+        } as any,
+      });
+
+      if (activeFeaturedCount >= 3) {
+        throw new BadRequestException(
+          'An organization can have at most 3 featured events. Please unfeature another event first.',
+        );
+      }
     }
 
     // 3. Handle title modifications and regeneration of slugs
@@ -239,7 +334,8 @@ export class EventsService {
     }
 
     // 4. Update the event
-    return this.prisma.event.update({
+    const oldStatus = event.status;
+    const updated = await this.prisma.event.update({
       where: { id: eventId },
       data: updateData,
       include: {
@@ -248,6 +344,33 @@ export class EventsService {
         },
       },
     });
+
+    // 5. Emit webhooks on status transitions
+    if (updated && dto.status !== undefined && dto.status !== oldStatus) {
+      if (dto.status === EventStatus.ACTIVE) {
+        this.webhooksService
+          .emit(orgId, 'event.published', {
+            event: {
+              id: updated.id,
+              title: updated.title,
+              slug: updated.slug,
+            },
+          })
+          .catch(() => {});
+      } else if (dto.status === EventStatus.CLOSED) {
+        this.webhooksService
+          .emit(orgId, 'event.closed', {
+            event: {
+              id: updated.id,
+              title: updated.title,
+              slug: updated.slug,
+            },
+          })
+          .catch(() => {});
+      }
+    }
+
+    return updated;
   }
 
   async remove(eventId: string, orgId: string) {
@@ -289,16 +412,7 @@ export class EventsService {
         formFields: {
           orderBy: { order: 'asc' },
         },
-        theme: true,
-        skin: true,
-        organization: {
-          include: {
-            defaultTheme: true,
-            hubTheme: true,
-            defaultSkin: true,
-            hubSkin: true,
-          },
-        },
+        organization: true,
         _count: {
           select: { registrations: true },
         },
@@ -312,7 +426,63 @@ export class EventsService {
     return event;
   }
 
-  async getRegistrations(eventId: string, organizationId: string) {
+
+  private cleanOptionalCopy(value: unknown, maxLength: number) {
+    if (value === null || value === undefined) return null;
+    if (typeof value !== 'string') {
+      throw new BadRequestException('Registration copy must be text.');
+    }
+
+    const cleaned = value.trim();
+    if (cleaned.length > maxLength) {
+      throw new BadRequestException(
+        `Registration copy must be ${maxLength} characters or fewer.`,
+      );
+    }
+    return cleaned || null;
+  }
+
+  async findPublicById(eventId: string) {
+    const event = await this.prisma.event.findUnique({
+      where: { id: eventId },
+      include: {
+        formFields: {
+          orderBy: { order: 'asc' },
+        },
+        organization: {
+          select: {
+            id: true,
+            slug: true,
+            name: true,
+            logoUrl: true,
+          },
+        },
+        _count: {
+          select: {
+            registrations: {
+              where: { status: RegistrationStatus.CONFIRMED },
+            },
+          },
+        },
+      },
+    });
+
+    if (!event) {
+      throw new NotFoundException('Event not found');
+    }
+
+    return {
+      ...event,
+      registrationCount: event._count.registrations,
+    };
+  }
+
+  async getRegistrations(
+    eventId: string,
+    organizationId: string,
+    cursor?: string,
+    limit: number = 50,
+  ) {
     const event = await this.prisma.event.findUnique({
       where: { id: eventId },
     });
@@ -327,10 +497,25 @@ export class EventsService {
       );
     }
 
-    return this.prisma.registration.findMany({
+    const take = Math.min(Math.max(Number(limit) || 50, 1), 100);
+
+    const items = await this.prisma.registration.findMany({
       where: { eventId },
       orderBy: { createdAt: 'desc' },
+      take: take + 1,
+      ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
     });
+
+    let nextCursor: string | null = null;
+    if (items.length > take) {
+      const nextItem = items.pop();
+      nextCursor = nextItem!.id;
+    }
+
+    return {
+      data: items,
+      nextCursor,
+    };
   }
 
   async exportRegistrationsCsv(

@@ -1,19 +1,8 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
-import Link from "next/link";
+import React, { useState } from "react";
 import RegistrationForm from "@/components/RegistrationForm";
 import { formatFriendlyDate } from "@/lib/date-utils";
-import { deriveThemeVariables } from "@/lib/color-utils";
-import dynamic from "next/dynamic";
-
-const AuroraBg = dynamic(() => import("@/components/ui/backgrounds/Aurora"), { ssr: false });
-const GradientBg = dynamic(() => import("@/components/ui/backgrounds/Gradient"), { ssr: false });
-const ShapegridBg = dynamic(() => import("@/components/ui/backgrounds/Shapegrid"), { ssr: false });
-const PixelsnowBg = dynamic(() => import("@/components/ui/backgrounds/Pixelsnow"), { ssr: false });
-const LightfallBg = dynamic(() => import("@/components/ui/backgrounds/Lightfall"), { ssr: false });
-const SideraysBg = dynamic(() => import("@/components/ui/backgrounds/Siderays"), { ssr: false });
-const LightraysBg = dynamic(() => import("@/components/ui/backgrounds/Lightrays"), { ssr: false });
 
 interface EventPageClientProps {
   event: any;
@@ -22,84 +11,15 @@ interface EventPageClientProps {
 export default function EventPageClient({ event }: EventPageClientProps) {
   const [registeredTicket, setRegisteredTicket] = useState<any>(null);
 
-  // Resolve base CSS themes from organization settings (with event override theme)
-  const selTheme = event.theme || event.organization.hubTheme || event.organization.defaultTheme || {
-    baseMode: "auto",
-    accentHue: 250,
-    accentChroma: 0.18,
-    surfaceTone: "mid",
-    skinId: "frosted",
-    fontPairingId: "inter-inter",
-  };
-
-  // If semantic columns are null/undefined but cssVariables exists (legacy record during migration)
-  // we fallback to system default to prevent crashes
-  const isThemeLegacy = selTheme.accentHue === undefined || selTheme.accentHue === null;
-  const finalTheme = isThemeLegacy
-    ? {
-        baseMode: "auto",
-        accentHue: 250,
-        accentChroma: 0.18,
-        surfaceTone: "mid",
-        skinId: "frosted",
-        fontPairingId: "inter-inter",
-      }
-    : selTheme;
-
-  // Resolve skin: event.skin (if overridden) or fall back to organization settings
-  const selSkin = event.skin || event.organization.hubSkin || event.organization.defaultSkin || {
-    borderRadius: "16px",
-    borderStyle: "solid",
-    borderWidth: "1px",
-    shadowStyle: "frosted",
-    fontFamily: "var(--font-sans)",
-    backdropStyle: "AURORA_GLOW",
-  };
-
-  const serverMode = finalTheme.baseMode === "light" ? "light" : "dark";
-  const [themeMode, setThemeMode] = useState<"dark" | "light">(serverMode);
-
-  useEffect(() => {
-    const root = document.documentElement;
-    const attr = root.getAttribute("data-hub-theme");
-    const saved = localStorage.getItem("eventsplug-hub-theme-preference");
-    
-    const mode = (attr === "light" || attr === "dark")
-      ? attr
-      : (saved === "light" || saved === "dark")
-      ? saved
-      : finalTheme.baseMode === "light"
-      ? "light"
-      : "dark";
-
-    setThemeMode(mode);
-
-    // Sync HTML class and attribute
-    if (!root.classList.contains("light-hub") && !root.classList.contains("dark-hub")) {
-      root.classList.add(mode === "light" ? "light-hub" : "dark-hub");
-      root.setAttribute("data-hub-theme", mode);
-    }
-  }, [finalTheme.baseMode]);
-
-  const toggleTheme = () => {
-    const newMode = themeMode === "dark" ? "light" : "dark";
-    setThemeMode(newMode);
-    localStorage.setItem("eventsplug-hub-theme-preference", newMode);
-    const root = document.documentElement;
-    root.classList.remove("light-hub", "dark-hub");
-    root.classList.add(newMode === "light" ? "light-hub" : "dark-hub");
-    root.setAttribute("data-hub-theme", newMode);
-  };
-
-  const derived = deriveThemeVariables(finalTheme, themeMode);
-
-  // Capacity calculations
+  const accentColor = event.accentColor || "#3b82f6";
   const registeredCount = event._count?.registrations || 0;
   const isFull = event.maxRegistrations && registeredCount >= event.maxRegistrations;
+  const deadline = event.registrationDeadline ? new Date(event.registrationDeadline) : event.date ? new Date(event.date) : null;
+  const isPastEvent = deadline ? deadline < new Date() : false;
 
-  // Calendar Link Generator
   const buildCalendarUrl = (evt: any) => {
     try {
+      if (!evt.date) return "#";
       const eventDate = new Date(evt.date);
       if (isNaN(eventDate.getTime())) return "#";
 
@@ -120,7 +40,6 @@ export default function EventPageClient({ event }: EventPageClientProps) {
     }
   };
 
-  // WhatsApp Link Generator
   const buildWhatsAppUrl = (evt: any) => {
     const shareUrl = typeof window !== "undefined"
       ? window.location.href
@@ -132,263 +51,18 @@ export default function EventPageClient({ event }: EventPageClientProps) {
   };
 
   return (
-    <main
-      style={{
-        transition: "background-color 0.3s ease, color 0.3s ease",
-      }}
-      className="min-h-screen relative overflow-hidden px-4 py-8 md:py-16 hub-bg"
-    >
-      {/* Dynamic Keyframe Animations & Hub CSS Variables */}
-      <style jsx global>{`
-        @keyframes spotlight-pulse {
-          0%, 100% { transform: translate(-50%, -50%) scale(1) translate(0, 0); opacity: 0.12; }
-          50% { transform: translate(-50%, -50%) scale(1.15) translate(40px, -20px); opacity: 0.16; }
-        }
-        @keyframes aurora-drift {
-          0%, 100% { transform: translate(0, 0) scale(1); }
-          33% { transform: translate(30px, -50px) scale(1.08); }
-          66% { transform: translate(-20px, 20px) scale(0.95); }
-        }
-
-        :root {
-          --hub-bg-color: ${derived.bgColor};
-          --hub-text-color: ${derived.textColor};
-          --hub-card-bg: ${derived.cardBg};
-          --hub-card-border: ${derived.cardBorder};
-          --hub-accent-color: ${derived.primaryColor};
-          --hub-grid-line-color: ${derived.gridLineColor};
-          --hub-grid-opacity: ${derived.gridOpacity};
-          --hub-spotlight-opacity: ${themeMode === "light" ? "0.08" : "0.14"};
-          --hub-aurora-accent-opacity: ${themeMode === "light" ? "0.04" : "0.06"};
-          --hub-aurora-pink-opacity: ${themeMode === "light" ? "0.03" : "0.05"};
-
-          --hub-cover-bg: ${themeMode === "light" ? "linear-gradient(135deg, #f1f5f9, rgba(226, 232, 240, 0.5))" : "linear-gradient(135deg, rgba(255, 255, 255, 0.015), rgba(255, 255, 255, 0.005))"};
-          --hub-cover-border: ${derived.cardBorder};
-          --hub-muted-title: ${themeMode === "light" ? "#94a3b8" : "#475569"};
-          --hub-muted-text: ${derived.textSecondary};
-          --hub-border-color: ${derived.cardBorder};
-          
-          --hub-logo-bg: ${themeMode === "light" ? "#f1f5f9" : "rgba(255, 255, 255, 0.05)"};
-          --hub-title-color: ${derived.textColor};
-          --hub-poster-text: ${derived.textSecondary};
-          --hub-bar-bg: ${themeMode === "light" ? "#e2e8f0" : "rgba(0, 0, 0, 0.4)"};
-          
-          --hub-soldout-btn-bg: ${themeMode === "light" ? "#f1f5f9" : "rgba(255, 255, 255, 0.05)"};
-          --hub-soldout-btn-border: ${derived.cardBorder};
-          --hub-soldout-btn-text: ${derived.textSecondary};
-          
-          --hub-footer-strong-color: ${derived.textSecondary};
-          
-          --hub-theme-toggle-bg: ${themeMode === "light" ? "rgba(255, 255, 255, 0.95)" : "rgba(15, 23, 42, 0.9)"};
-          --hub-theme-toggle-border: ${derived.cardBorder};
-          --hub-theme-toggle-text: ${themeMode === "light" ? "#1e293b" : "#fbbf24"};
-          --hub-theme-toggle-hover: ${themeMode === "light" ? "#f8fafc" : "rgba(30, 41, 59, 0.9)"};
-
-          --hub-banner-overlay-bg: ${themeMode === "light" ? "linear-gradient(to top, rgba(255,255,255,0.9) 0%, rgba(255,255,255,0.1) 50%, rgba(255,255,255,0.3) 100%)" : "linear-gradient(to top, rgba(0,0,0,0.8) 0%, rgba(0,0,0,0.2) 50%, rgba(0,0,0,0.4) 100%)"};
-
-          /* Structural skin tokens */
-          --hub-border-radius: ${derived.radiusCard};
-          --hub-border-style: solid;
-          --hub-border-width: ${derived.cardBorder === 'none' ? '0px' : '1px'};
-          --hub-font-family: var(--hub-font-body);
-          --hub-font-display: ${derived.fontDisplay};
-          --hub-font-body: ${derived.fontBody};
-          --hub-box-shadow: ${derived.shadowCard};
-        }
-
-        .hub-bg {
-          background-color: var(--hub-bg-color);
-          color: var(--hub-text-color);
-          font-family: var(--hub-font-family);
-        }
-        .hub-card {
-          background-color: var(--hub-card-bg);
-          border-width: var(--hub-border-width);
-          border-style: var(--hub-border-style);
-          border-color: var(--hub-card-border);
-          border-radius: var(--hub-border-radius);
-          box-shadow: var(--hub-box-shadow);
-        }
-        .hub-card-cover {
-          background: var(--hub-cover-bg);
-          border-color: var(--hub-cover-border);
-        }
-        .hub-border {
-          border-color: var(--hub-border-color);
-        }
-        .hub-logo-img, .hub-icon-container {
-          background-color: var(--hub-logo-bg);
-          border-color: var(--hub-border-color);
-        }
-        .hub-icon-container {
-          color: var(--hub-text-color);
-        }
-        .hub-title {
-          color: var(--hub-title-color);
-          font-family: var(--hub-font-display);
-        }
-        .hub-muted-title {
-          color: var(--hub-muted-title);
-        }
-        .hub-muted-text {
-          color: var(--hub-muted-text);
-        }
-        .hub-poster-placeholder-text {
-          color: var(--hub-poster-text);
-        }
-        .hub-bar-container {
-          background-color: var(--hub-bar-bg);
-          border-color: var(--hub-border-color);
-        }
-        .hub-btn-primary {
-          background-color: var(--hub-accent-color);
-          color: #ffffff !important;
-          box-shadow: 0 4px 14px -4px var(--hub-accent-color);
-        }
-        .hub-btn-soldout {
-          background-color: var(--hub-soldout-btn-bg);
-          border-color: var(--hub-soldout-btn-border);
-          color: var(--hub-soldout-btn-text);
-        }
-        .hub-footer-strong {
-          color: var(--hub-footer-strong-color);
-        }
-
-        .hub-theme-toggle {
-          background-color: var(--hub-theme-toggle-bg);
-          border-color: var(--hub-theme-toggle-border);
-          color: var(--hub-theme-toggle-text);
-        }
-        .hub-theme-toggle:hover {
-          background-color: var(--hub-theme-toggle-hover);
-        }
-
-        /* Backdrop Grid/Matrix Styling */
-        .hub-spotlight {
-          opacity: var(--hub-spotlight-opacity);
-        }
-        .hub-grid-warp-mesh {
-          background-image: linear-gradient(to right, rgba(var(--hub-grid-line-color), var(--hub-grid-opacity)) 1px, transparent 1px), linear-gradient(to bottom, rgba(var(--hub-grid-line-color), var(--hub-grid-opacity)) 1px, transparent 1px);
-        }
-        .hub-aurora-accent {
-          opacity: var(--hub-aurora-accent-opacity);
-        }
-        .hub-aurora-pink {
-          opacity: var(--hub-aurora-pink-opacity);
-        }
-        .hub-dot-matrix {
-          background-image: radial-gradient(rgba(var(--hub-grid-line-color), var(--hub-grid-opacity)) 1px, transparent 1px);
-        }
-
-        /* Toggle Button Icon Visibility */
-        html.dark-hub .hub-theme-sun { display: inline; }
-        html.dark-hub .hub-theme-moon { display: none; }
-        
-        html.light-hub .hub-theme-sun { display: none; }
-        html.light-hub .hub-theme-moon { display: inline; }
-      `}</style>
-
-      {/* Floating Dark/Light Toggle Switch */}
-      <button
-        onClick={toggleTheme}
-        aria-label="Toggle dark/light mode"
-        className="fixed bottom-6 right-6 z-50 flex items-center justify-center p-3.5 rounded-full shadow-2xl border transition-all duration-300 hover:scale-105 active:scale-95 hub-theme-toggle"
-      >
-        <span className="text-base select-none leading-none flex items-center justify-center">
-          <span className="hub-theme-sun">☀️</span>
-          <span className="hub-theme-moon">🌙</span>
-        </span>
-      </button>
-
-      {/* Dynamic backdrop selector */}
-      {(() => {
-        const themeStyle = event.organization.hubThemeStyle || selSkin.backdropStyle || "DOT_MATRIX";
-
-        switch (themeStyle) {
-          case "GRID_WARP":
-            return (
-              <>
-                <div
-                  style={{
-                    backgroundColor: "var(--hub-accent-color)",
-                    animation: 'spotlight-pulse 16s infinite ease-in-out',
-                  }}
-                  className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] rounded-full blur-[130px] pointer-events-none transition-all duration-500 hub-spotlight"
-                />
-                <div
-                  className="absolute inset-0 pointer-events-none hub-grid-warp-mesh"
-                  style={{
-                    backgroundSize: '16px 16px',
-                    transition: 'background-image 0.3s ease',
-                  }}
-                />
-              </>
-            );
-          case "AURORA_GLOW":
-            return (
-              <>
-                <div
-                  style={{
-                    backgroundColor: "var(--hub-accent-color)",
-                    animation: 'aurora-drift 22s infinite ease-in-out',
-                  }}
-                  className="absolute -top-40 -left-40 w-[600px] h-[600px] rounded-full blur-[160px] pointer-events-none transition-all duration-500 hub-aurora-accent"
-                />
-                <div
-                  style={{
-                    backgroundColor: '#ec4899',
-                    animation: 'aurora-drift 28s infinite ease-in-out reverse',
-                  }}
-                  className="absolute -bottom-40 -right-40 w-[500px] h-[500px] rounded-full blur-[140px] pointer-events-none transition-all duration-500 hub-aurora-pink"
-                />
-              </>
-            );
-          case "AURORA":
-            return <AuroraBg />;
-          case "GRADIENT":
-            return <GradientBg />;
-          case "SHAPEGRID":
-            return <ShapegridBg />;
-          case "PIXELSNOW":
-            return <PixelsnowBg />;
-          case "LIGHTFALL":
-            return <LightfallBg />;
-          case "SIDERAYS":
-            return <SideraysBg />;
-          case "LIGHTRAYS":
-            return <LightraysBg />;
-          case "DOT_MATRIX":
-          default:
-            return (
-              <div
-                className="absolute inset-0 pointer-events-none hub-dot-matrix"
-                style={{
-                  backgroundSize: '12px 12px',
-                  transition: 'background-image 0.3s ease',
-                }}
-              />
-            );
-        }
-      })()}
+    <main className="min-h-screen bg-slate-950 text-slate-100 font-sans relative overflow-hidden px-4 py-8 md:py-16">
+      {/* Background Glow */}
+      <div
+        style={{ backgroundColor: accentColor }}
+        className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] rounded-full blur-[140px] opacity-15 pointer-events-none"
+      />
 
       <div className="max-w-4xl mx-auto space-y-6 relative z-10">
-        {/* Hub Back link header */}
-        <div className="pb-4 border-b mb-4 hub-border">
-          <Link
-            href={`/o/${event.organization.slug}`}
-            className="inline-flex items-center gap-2 text-xs font-bold transition-colors group whitespace-nowrap hub-muted-text hover:opacity-90"
-          >
-            <span className="transform group-hover:translate-x-[-2px] transition-transform duration-200">←</span>
-            <span>Back to {event.organization.name}</span>
-          </Link>
-        </div>
-
-        {/* Double column container */}
         <div className="grid grid-cols-1 md:grid-cols-12 gap-8 items-start">
-          {/* Left details panel: 7-span */}
+          {/* Left Details Panel */}
           <div className="md:col-span-7 space-y-6">
-            {/* Event poster/cover card */}
-            <div className="overflow-hidden relative hub-card">
+            <div className="overflow-hidden relative rounded-2xl border border-slate-800 bg-slate-900/60 shadow-xl">
               {event.posterUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
@@ -397,158 +71,160 @@ export default function EventPageClient({ event }: EventPageClientProps) {
                   className="w-full h-auto max-h-[340px] object-cover"
                 />
               ) : (
-                <div className="w-full h-[180px] flex items-center justify-center relative overflow-hidden hub-card-cover">
-                  <div
-                    style={{ backgroundColor: "var(--hub-accent-color)" }}
-                    className="absolute w-[200px] h-[200px] rounded-full blur-3xl opacity-30 animate-pulse"
-                  />
-                  <span className="text-xl font-black uppercase tracking-widest opacity-40 text-center px-6 hub-poster-placeholder-text">
+                <div className="w-full h-[160px] flex items-center justify-center relative overflow-hidden bg-slate-900">
+                  <span className="text-xl font-bold uppercase tracking-widest text-slate-500 text-center px-6">
                     {event.title}
                   </span>
                 </div>
               )}
             </div>
 
-            {/* Event Meta Information Card */}
-            <div className="p-6 space-y-6 hub-card">
-              <div className="space-y-2">
-                <h1 className="text-2xl md:text-3xl font-black tracking-tight leading-tight">
+            <div className="p-6 space-y-6 rounded-2xl border border-slate-800 bg-slate-900/60 backdrop-blur-md shadow-xl">
+              <div className="space-y-1">
+                <h1 className="text-2xl md:text-3xl font-black tracking-tight text-white">
                   {event.title}
                 </h1>
-                <p className="text-xs font-bold opacity-75">
-                  Organized by <strong className="text-current font-extrabold">{event.organization.name}</strong>
+                <p className="text-xs font-semibold text-slate-400">
+                  Organized by <strong className="text-slate-200">{event.organization.name}</strong>
                 </p>
               </div>
 
-              {/* Grid cards info details */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 border-y py-4 hub-border">
-                <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-xl border flex items-center justify-center text-sm shadow hub-icon-container hub-border">
-                    📅
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 border-y border-slate-800 py-4">
+                {event.date && (
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-xl border border-slate-800 bg-slate-800/50 flex items-center justify-center text-sm shadow">
+                      📅
+                    </div>
+                    <div className="text-[11px]">
+                      <div className="font-extrabold uppercase tracking-wide text-slate-400">Date & Time</div>
+                      <div className="font-bold text-slate-200">{formatFriendlyDate(event.date)}</div>
+                    </div>
                   </div>
-                  <div className="text-[11px]">
-                    <div className="font-extrabold uppercase tracking-wide hub-muted-title">Date & Time</div>
-                    <div className="font-bold">{formatFriendlyDate(event.date)}</div>
-                  </div>
-                </div>
+                )}
 
-                <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-xl border flex items-center justify-center text-sm shadow hub-icon-container hub-border">
-                    📍
+                {event.location && (
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-xl border border-slate-800 bg-slate-800/50 flex items-center justify-center text-sm shadow">
+                      📍
+                    </div>
+                    <div className="text-[11px]">
+                      <div className="font-extrabold uppercase tracking-wide text-slate-400">Location</div>
+                      <div className="font-bold text-slate-200">{event.location}</div>
+                    </div>
                   </div>
-                  <div className="text-[11px]">
-                    <div className="font-extrabold uppercase tracking-wide hub-muted-title">Location</div>
-                    <div className="font-bold">{event.location}</div>
-                  </div>
-                </div>
+                )}
               </div>
 
-              {/* Progress counter for seat booking */}
-              <div className="space-y-2.5">
-                <div className="flex justify-between text-xs font-bold hub-muted-text">
-                  <span>Capacity Details</span>
-                  <span>
-                    {isFull
-                      ? "Sold Out 🚫"
-                      : `${registeredCount} / ${event.maxRegistrations || "Unlimited"} Seats`}
-                  </span>
+              {event.maxRegistrations && (
+                <div className="space-y-2">
+                  <div className="flex justify-between text-xs font-bold text-slate-400">
+                    <span>Submissions</span>
+                    <span>
+                      {isFull
+                        ? "Full 🚫"
+                        : `${registeredCount} / ${event.maxRegistrations}`}
+                    </span>
+                  </div>
+                  <div className="w-full h-2 rounded-full overflow-hidden bg-slate-800">
+                    <div
+                      style={{
+                        width: `${Math.min((registeredCount / event.maxRegistrations) * 100, 100)}%`,
+                        backgroundColor: isFull ? "#ef4444" : accentColor,
+                      }}
+                      className="h-full rounded-full transition-all duration-500"
+                    />
+                  </div>
                 </div>
-                <div className="w-full h-2 rounded-full overflow-hidden border hub-bar-container">
-                  <div
-                    style={{
-                      width: event.maxRegistrations
-                        ? `${Math.min((registeredCount / event.maxRegistrations) * 100, 100)}%`
-                        : "5%",
-                      backgroundColor: isFull ? "#ef4444" : "var(--hub-accent-color)",
-                    }}
-                    className="h-full rounded-full transition-all duration-500"
-                  />
-                </div>
-              </div>
+              )}
 
-              {/* Main about description text */}
-              <div className="space-y-2.5 border-t pt-4 hub-border">
-                <h4 className="text-xs font-black uppercase tracking-widest hub-muted-title">About this Event</h4>
-                <p className="text-xs leading-relaxed opacity-85 font-medium whitespace-pre-wrap">
-                  {event.description || "No description provided for this event."}
+              <div className="space-y-2 border-t border-slate-800 pt-4">
+                <h4 className="text-xs font-black uppercase tracking-widest text-slate-400">Description</h4>
+                <p className="text-xs leading-relaxed text-slate-300 font-medium whitespace-pre-wrap">
+                  {event.description || "No description provided."}
                 </p>
               </div>
             </div>
           </div>
 
-          {/* Right interactive registration card: 5-span */}
+          {/* Right Form Panel */}
           <div className="md:col-span-5">
-            <div className="p-6 shadow-2xl space-y-4 hub-card">
-              <div className="space-y-1 pb-3 border-b hub-border">
-                <h3 className="text-sm font-extrabold uppercase tracking-widest hub-muted-title">
-                  Registration
+            <div className="p-6 rounded-2xl border border-slate-800 bg-slate-900/60 backdrop-blur-md shadow-2xl space-y-4">
+              <div className="space-y-1 pb-3 border-b border-slate-800">
+                <h3 className="text-base font-extrabold tracking-tight text-slate-200">
+                  {event.registrationTitle || "Complete Registration"}
                 </h3>
-                <p className="text-[11px] font-bold leading-normal hub-muted-text">
-                  Secure your seat instantly. Registration is 100% free.
+                <p className="text-xs font-medium text-slate-400">
+                  {event.registrationDescription || "Fill in your details below."}
                 </p>
               </div>
 
-              {isFull ? (
-                <div className="p-6 rounded-2xl bg-red-950/20 border border-red-900/50 text-center space-y-3">
-                  <span className="text-3xl block animate-bounce">🚫</span>
-                  <h4 className="text-xs font-black text-red-400 uppercase tracking-widest">
+              {isPastEvent ? (
+                <div className="p-6 rounded-2xl bg-amber-950/20 border border-amber-900/50 text-center space-y-3">
+                  <span className="text-3xl block animate-pulse">📅</span>
+                  <h4 className="text-xs font-black text-amber-400 uppercase tracking-widest">
                     Registration Closed
                   </h4>
                   <p className="text-slate-400 text-[10px] leading-relaxed">
-                    This event is fully booked! Capacity limits have been reached and registrations are closed.
-                  </p> 
+                    The registration deadline has passed.
+                  </p>
+                </div>
+              ) : isFull ? (
+                <div className="p-6 rounded-2xl bg-red-950/20 border border-red-900/50 text-center space-y-3">
+                  <span className="text-3xl block animate-bounce">🚫</span>
+                  <h4 className="text-xs font-black text-red-400 uppercase tracking-widest">
+                    Form Full
+                  </h4>
+                  <p className="text-slate-400 text-[10px] leading-relaxed">
+                    This form has reached its maximum response capacity.
+                  </p>
                 </div>
               ) : (
                 <RegistrationForm
                   event={event}
                   preview={false}
                   onSubmitSuccess={(ticket) => setRegisteredTicket(ticket)}
-                  primaryColor={derived.primaryColor}
-                  cardBg={derived.cardBg}
-                  textColor={derived.textColor}
+                  primaryColor={accentColor}
+                  cardBg="rgb(15, 23, 42)"
+                  textColor="#f8fafc"
                 />
               )}
             </div>
           </div>
         </div>
 
-        {/* Centered Brand Watermark Footer */}
-        <div className="text-center pt-8 pb-2 hub-muted-text select-none">
+        <div className="text-center pt-8 pb-2 text-slate-500 select-none">
           <span className="text-[10px] font-mono tracking-wider uppercase">
-            Powered by <strong className="font-extrabold hub-footer-strong">EventsPlug</strong>
+            Powered by <strong className="font-extrabold text-slate-300">EventsPlug</strong>
           </span>
         </div>
       </div>
 
-      {/* Ticket Success Confirmation Modal Dialog */}
+      {/* Confirmation Modal */}
       {registeredTicket && (
-        <div className="fixed inset-0 z-50 backdrop-blur-md flex items-center justify-center p-4 bg-black/60">
-          <div className="p-8 max-w-md w-full text-center space-y-6 relative overflow-hidden animate-in fade-in zoom-in-95 duration-200 hub-card">
-            {/* Glowing accent border */}
+        <div className="fixed inset-0 z-50 backdrop-blur-md flex items-center justify-center p-4 bg-black/70">
+          <div className="p-8 max-w-md w-full text-center space-y-6 relative overflow-hidden rounded-2xl border border-slate-800 bg-slate-900 shadow-2xl">
             <div
-              style={{ backgroundColor: "var(--hub-accent-color)" }}
+              style={{ backgroundColor: accentColor }}
               className="absolute top-0 left-0 right-0 h-1.5"
             />
 
-            <div className="inline-flex items-center justify-center w-14 h-14 rounded-full bg-emerald-500/10 border border-emerald-500/25 text-emerald-400 text-2xl shadow shadow-emerald-500/5 animate-pulse">
+            <div className="inline-flex items-center justify-center w-14 h-14 rounded-full bg-emerald-500/10 border border-emerald-500/25 text-emerald-400 text-2xl shadow animate-pulse">
               ✓
             </div>
 
             <div className="space-y-2">
-              <h2 className="text-lg font-black tracking-tight uppercase">Registration Confirmed!</h2>
-              <p className="text-xs leading-relaxed font-medium opacity-75">
-                You are registered for <strong className="text-current font-black">{event.title}</strong>.<br />
-                A confirmation has been logged to our registers.
+              <h2 className="text-lg font-black tracking-tight text-white uppercase">Submission Received!</h2>
+              <p className="text-xs leading-relaxed font-medium text-slate-300">
+                Your response for <strong className="text-white font-black">{event.title}</strong> has been successfully recorded.
               </p>
             </div>
 
-            {/* Universal Actions Grid */}
             <div className="grid grid-cols-2 gap-3 pt-2">
               <a
                 href={buildCalendarUrl(event)}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center justify-center gap-1.5 px-4 py-3 rounded-xl font-extrabold text-[10px] uppercase border transition-colors hub-theme-toggle"
+                className="inline-flex items-center justify-center gap-1.5 px-4 py-3 rounded-xl font-extrabold text-[10px] uppercase border border-slate-800 bg-slate-800/50 hover:bg-slate-800 text-slate-200 transition-colors"
               >
                 📅 Calendar
               </a>
@@ -557,9 +233,9 @@ export default function EventPageClient({ event }: EventPageClientProps) {
                 target="_blank"
                 rel="noopener noreferrer"
                 style={{
-                  backgroundColor: `${derived.primaryColor}15`,
-                  color: derived.primaryColor,
-                  borderColor: `${derived.primaryColor}30`,
+                  backgroundColor: `${accentColor}20`,
+                  color: accentColor,
+                  borderColor: `${accentColor}40`,
                 }}
                 className="inline-flex items-center justify-center gap-1.5 px-4 py-3 rounded-xl border font-extrabold text-[10px] uppercase transition-colors hover:opacity-90"
               >
@@ -570,10 +246,10 @@ export default function EventPageClient({ event }: EventPageClientProps) {
             <button
               onClick={() => {
                 setRegisteredTicket(null);
-                // Force a page refresh to update capacity counters in background
                 if (typeof window !== "undefined") window.location.reload();
               }}
-              className="w-full inline-flex items-center justify-center px-6 py-3 rounded-xl text-white font-extrabold text-xs transition-all hub-btn-primary"
+              style={{ backgroundColor: accentColor }}
+              className="w-full inline-flex items-center justify-center px-6 py-3 rounded-xl text-white font-extrabold text-xs transition-all shadow-md"
             >
               Done
             </button>
@@ -583,3 +259,4 @@ export default function EventPageClient({ event }: EventPageClientProps) {
     </main>
   );
 }
+

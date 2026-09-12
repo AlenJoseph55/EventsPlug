@@ -70,10 +70,10 @@ export default function RootLayout({
                     }
                   } else {
                     var savedAdmin = localStorage.getItem('eventsplug-admin-theme-preference');
-                    if (savedAdmin === 'light') {
-                      document.documentElement.classList.add('light-admin');
-                    } else {
+                    if (savedAdmin === 'dark') {
                       document.documentElement.classList.add('dark-admin');
+                    } else {
+                      document.documentElement.classList.add('light-admin');
                     }
                   }
                 } catch (e) {}

@@ -1,11 +1,54 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+import QRCode from "qrcode";
 import { useAttendeeRegistrations, AttendeeRegistration } from "@/hooks/useAttendeeRegistrations";
+import { useAuth } from "@/providers/AuthProvider";
 
 export default function MyTicketsTab() {
-  const { registrations, isLoading, isError } = useAttendeeRegistrations();
+  const { registrations, isLoading, isError, refetchRegistrations } = useAttendeeRegistrations();
+  const { apiBase } = useAuth();
   const [selectedTicket, setSelectedTicket] = useState<AttendeeRegistration | null>(null);
+  const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
+  const [isCancelling, setIsCancelling] = useState(false);
+
+  useEffect(() => {
+    if (!selectedTicket) {
+      setQrDataUrl(null);
+      return;
+    }
+    QRCode.toDataURL(selectedTicket.id, {
+      margin: 1,
+      width: 240,
+      color: { dark: "#0f172a", light: "#ffffff" },
+    })
+      .then(setQrDataUrl)
+      .catch((err) => console.error("Failed to generate QR code", err));
+  }, [selectedTicket]);
+
+  const handleCancelTicket = async (ticketId: string) => {
+    if (!confirm("Are you sure you want to cancel your registration? If you cancel, your spot will be given to the next person on the waitlist.")) {
+      return;
+    }
+
+    try {
+      setIsCancelling(true);
+      const res = await fetch(`${apiBase}/registrations/${ticketId}/cancel`, {
+        method: "POST",
+      });
+
+      if (!res.ok) {
+        throw new Error("Failed to cancel registration");
+      }
+
+      await refetchRegistrations();
+      setSelectedTicket(null);
+    } catch (err) {
+      alert("Failed to cancel registration. Please try again.");
+    } finally {
+      setIsCancelling(false);
+    }
+  };
 
   if (isLoading) {
     return (
@@ -32,6 +75,36 @@ export default function MyTicketsTab() {
     const day = d.getDate().toString().padStart(2, "0");
     const month = d.toLocaleDateString(undefined, { month: "short" }).toUpperCase();
     return { day, month };
+  };
+
+  const renderStatusBadge = (status: AttendeeRegistration["status"]) => {
+    switch (status) {
+      case "CHECKED_IN":
+        return (
+          <span className="px-2.5 py-0.5 rounded-full text-[9px] font-bold bg-blue-500/10 text-blue-400 border border-blue-500/20 uppercase tracking-widest font-mono">
+            ✓ Checked In
+          </span>
+        );
+      case "WAITLISTED":
+        return (
+          <span className="px-2.5 py-0.5 rounded-full text-[9px] font-bold bg-amber-500/10 text-amber-400 border border-amber-500/20 uppercase tracking-widest font-mono">
+            ⌛ Waitlisted
+          </span>
+        );
+      case "CANCELLED":
+        return (
+          <span className="px-2.5 py-0.5 rounded-full text-[9px] font-bold bg-rose-500/10 text-rose-400 border border-rose-500/20 uppercase tracking-widest font-mono">
+            ✕ Cancelled
+          </span>
+        );
+      case "REGISTERED":
+      default:
+        return (
+          <span className="px-2.5 py-0.5 rounded-full text-[9px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 uppercase tracking-widest font-mono">
+            ✓ Confirmed Ticket
+          </span>
+        );
+    }
   };
 
   return (
@@ -79,9 +152,7 @@ export default function MyTicketsTab() {
                   </div>
 
                   <div className="min-w-0 flex-1 space-y-1">
-                    <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-success-bg text-success-text border border-success-border uppercase tracking-widest font-mono">
-                      ✓ Registered
-                    </span>
+                    {renderStatusBadge(reg.status)}
                     <h4 className="text-base font-bold text-text-primary truncate mt-1">{reg.eventTitle}</h4>
                     <p className="text-xs text-text-secondary font-semibold truncate">
                       Hosted by {reg.orgName}
@@ -144,19 +215,25 @@ export default function MyTicketsTab() {
               <h4 className="text-lg font-extrabold text-text-primary tracking-tight">
                 {selectedTicket.eventTitle}
               </h4>
+              <div className="pt-1">{renderStatusBadge(selectedTicket.status)}</div>
             </div>
 
-            {/* Generated QR Pass placeholder/canvas */}
+            {/* Generated QR Pass canvas */}
             <div className="w-48 h-48 bg-white rounded-2xl mx-auto flex items-center justify-center p-3 border shadow-inner">
-              {/* QR Image representation */}
-              <div className="text-center space-y-1 select-none">
-                <svg className="w-36 h-36 text-slate-900 mx-auto" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M3 3h6v6H3V3zm2 2v2h2V5H5zm8-2h6v6h-6V3zm2 2v2h2V5h-2zM3 13h6v6H3v-6zm2 2v2h2v-2H5zm13-2h3v2h-3v-2zm-3 3h3v3h-3v-3zm3 0h3v2h-3v-2zm-3-3h2v2h-2v-2zm3 6h3v3h-3v-3zm-6-3h2v5h-2v-5zm3 2h2v3h-2v-3z" />
-                </svg>
-                <span className="text-[9px] font-mono text-slate-500 font-extrabold block">
-                  SECURE PASS CHECK-IN
-                </span>
-              </div>
+              {selectedTicket.status === "CANCELLED" ? (
+                <div className="text-center space-y-1 select-none text-rose-500">
+                  <svg className="w-16 h-16 mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
+                  </svg>
+                  <span className="text-[10px] font-mono font-extrabold block uppercase tracking-wider text-rose-600">
+                    TICKET CANCELLED
+                  </span>
+                </div>
+              ) : qrDataUrl ? (
+                <img src={qrDataUrl} alt="Ticket QR Code Pass" className="w-44 h-44 object-contain" />
+              ) : (
+                <span className="text-xs text-text-secondary animate-pulse">Generating QR Pass...</span>
+              )}
             </div>
 
             <div className="space-y-3 bg-bg-panel-alt p-4 rounded-2xl border border-border-main">
@@ -183,12 +260,24 @@ export default function MyTicketsTab() {
               </div>
             </div>
 
-            <button
-              onClick={() => setSelectedTicket(null)}
-              className="w-full py-3 rounded-xl bg-bg-panel-alt hover:bg-border-main border border-border-main text-text-primary text-xs font-bold transition cursor-pointer btn-interactive"
-            >
-              Done / Close
-            </button>
+            <div className="space-y-2">
+              {selectedTicket.status !== "CANCELLED" && (
+                <button
+                  onClick={() => handleCancelTicket(selectedTicket.id)}
+                  disabled={isCancelling}
+                  className="w-full py-2.5 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/20 text-rose-400 text-xs font-bold transition cursor-pointer disabled:opacity-50"
+                >
+                  {isCancelling ? "Cancelling..." : "Cancel RSVP"}
+                </button>
+              )}
+
+              <button
+                onClick={() => setSelectedTicket(null)}
+                className="w-full py-2.5 rounded-xl bg-bg-panel-alt hover:bg-border-main border border-border-main text-text-primary text-xs font-bold transition cursor-pointer btn-interactive"
+              >
+                Close Pass
+              </button>
+            </div>
           </div>
         </div>
       )}

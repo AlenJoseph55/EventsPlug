@@ -15,6 +15,33 @@ interface EditEventModalProps {
   onClose: () => void;
 }
 
+const getInitialDeadlineTypeAndCustomVal = (evt: EventData) => {
+  if (!evt.registrationDeadline) {
+    return { type: "start", custom: "" };
+  }
+  const dateMs = new Date(evt.date).getTime();
+  const deadlineMs = new Date(evt.registrationDeadline).getTime();
+  const diffMs = dateMs - deadlineMs;
+
+  if (Math.abs(diffMs) < 1000) {
+    return { type: "start", custom: "" };
+  }
+  if (Math.abs(diffMs - 60 * 60 * 1000) < 1000) {
+    return { type: "1h", custom: "" };
+  }
+  if (Math.abs(diffMs - 6 * 60 * 60 * 1000) < 1000) {
+    return { type: "6h", custom: "" };
+  }
+  if (Math.abs(diffMs - 24 * 60 * 60 * 1000) < 1000) {
+    return { type: "24h", custom: "" };
+  }
+
+  const d = new Date(evt.registrationDeadline);
+  const pad = (num: number) => String(num).padStart(2, "0");
+  const formatted = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  return { type: "custom", custom: formatted };
+};
+
 export default function EditEventModal({ event, onClose }: EditEventModalProps) {
   const { token, apiBase } = useAuth();
   const queryClient = useQueryClient();
@@ -31,10 +58,13 @@ export default function EditEventModal({ event, onClose }: EditEventModalProps) 
     saveField,
   } = useEvents();
 
-  const { skins } = useThemes();
+  const { skins, themes } = useThemes();
 
   // Basic Details Form States
   const [editTitle, setEditTitle] = useState(event.title);
+  const [editStatus, setEditStatus] = useState<"ACTIVE" | "INACTIVE" | "CLOSED">(
+    (event.status as any) || "ACTIVE"
+  );
   const [editDescription, setEditDescription] = useState(event.description);
   const [editDate, setEditDate] = useState("");
   const [editLocation, setEditLocation] = useState(event.location);
@@ -45,6 +75,20 @@ export default function EditEventModal({ event, onClose }: EditEventModalProps) 
     event.autoFitImage === null ? "inherit" : String(event.autoFitImage)
   );
   const [editSkinId, setEditSkinId] = useState(event.skinId || "inherit");
+  const [editThemeId, setEditThemeId] = useState(event.themeId || "inherit");
+  const [editRegistrationTitle, setEditRegistrationTitle] = useState(event.registrationTitle || "Reserve your place");
+  const [editRegistrationDescription, setEditRegistrationDescription] = useState(event.registrationDescription || "Complete the form below to confirm your spot.");
+  const [editRegistrationButtonLabel, setEditRegistrationButtonLabel] = useState(event.registrationButtonLabel || "Register now");
+  const [editFormDensity, setEditFormDensity] = useState<"COMPACT" | "COMFORTABLE">(event.formDensity || "COMFORTABLE");
+  const [editIsFeatured, setEditIsFeatured] = useState(!!event.isFeatured);
+  const [editDeadlineType, setEditDeadlineType] = useState<"start" | "1h" | "6h" | "24h" | "custom">(() => {
+    const init = getInitialDeadlineTypeAndCustomVal(event);
+    return init.type as any;
+  });
+  const [editCustomDeadline, setEditCustomDeadline] = useState(() => {
+    const init = getInitialDeadlineTypeAndCustomVal(event);
+    return init.custom;
+  });
   const [editPosterUrl, setEditPosterUrl] = useState(event.posterUrl || "");
   const [editUploadingPoster, setEditUploadingPoster] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
@@ -61,6 +105,14 @@ export default function EditEventModal({ event, onClose }: EditEventModalProps) 
         console.error(e);
       }
     }
+    const init = getInitialDeadlineTypeAndCustomVal(event);
+    setEditDeadlineType(init.type as any);
+    setEditCustomDeadline(init.custom);
+    setEditThemeId(event.themeId || "inherit");
+    setEditRegistrationTitle(event.registrationTitle || "Reserve your place");
+    setEditRegistrationDescription(event.registrationDescription || "Complete the form below to confirm your spot.");
+    setEditRegistrationButtonLabel(event.registrationButtonLabel || "Register now");
+    setEditFormDensity(event.formDensity || "COMFORTABLE");
   }, [event]);
 
   // Find the latest live data from query cache to keep fields list reactive
@@ -84,6 +136,7 @@ export default function EditEventModal({ event, onClose }: EditEventModalProps) 
   const [editFieldPlaceholder, setEditFieldPlaceholder] = useState("");
   const [editFieldType, setEditFieldType] = useState("TEXT");
   const [editFieldRequired, setEditFieldRequired] = useState(false);
+  const [editFieldIsIdentity, setEditFieldIsIdentity] = useState(false);
   const [editFieldOptions, setEditFieldOptions] = useState("");
 
 
@@ -135,15 +188,39 @@ export default function EditEventModal({ event, onClose }: EditEventModalProps) 
     e.preventDefault();
     setEditError(null);
     try {
+      let calculatedDeadline: string | null = null;
+      if (editDate) {
+        const eventTime = new Date(editDate).getTime();
+        if (editDeadlineType === "start") {
+          calculatedDeadline = new Date(eventTime).toISOString();
+        } else if (editDeadlineType === "1h") {
+          calculatedDeadline = new Date(eventTime - 60 * 60 * 1000).toISOString();
+        } else if (editDeadlineType === "6h") {
+          calculatedDeadline = new Date(eventTime - 6 * 60 * 60 * 1000).toISOString();
+        } else if (editDeadlineType === "24h") {
+          calculatedDeadline = new Date(eventTime - 24 * 60 * 60 * 1000).toISOString();
+        } else if (editDeadlineType === "custom" && editCustomDeadline) {
+          calculatedDeadline = new Date(editCustomDeadline).toISOString();
+        }
+      }
+
       const payload: Partial<EventData> = {
         title: editTitle,
+        status: editStatus,
         description: editDescription,
         date: new Date(editDate).toISOString(),
         location: editLocation,
         maxRegistrations: editMaxRegistrations ? parseInt(editMaxRegistrations, 10) : undefined,
+        isFeatured: editIsFeatured,
+        registrationDeadline: calculatedDeadline || undefined,
         autoFitImage: editAutoFitImage === "inherit" ? null : editAutoFitImage === "true",
         posterUrl: editPosterUrl || undefined,
         skinId: editSkinId === "inherit" ? null : editSkinId,
+        themeId: editThemeId === "inherit" ? null : editThemeId,
+        registrationTitle: editRegistrationTitle,
+        registrationDescription: editRegistrationDescription,
+        registrationButtonLabel: editRegistrationButtonLabel,
+        formDensity: editFormDensity,
       };
       await editEvent({ id: event.id, payload });
       onClose();
@@ -229,6 +306,7 @@ export default function EditEventModal({ event, onClose }: EditEventModalProps) 
     setEditFieldPlaceholder(field.placeholder || "");
     setEditFieldType(field.type);
     setEditFieldRequired(field.required);
+    setEditFieldIsIdentity(!!field.isIdentityField);
 
     let optsStr = "";
     if (field.options) {
@@ -261,6 +339,7 @@ export default function EditEventModal({ event, onClose }: EditEventModalProps) 
           label: editFieldLabel.trim(),
           placeholder: editFieldPlaceholder.trim() || undefined,
           required: editFieldRequired,
+          isIdentityField: editFieldType === "EMAIL" ? editFieldIsIdentity : false,
           options: parsedOpts,
         },
       });
@@ -649,6 +728,20 @@ export default function EditEventModal({ event, onClose }: EditEventModalProps) 
                 className="w-full bg-bg-panel-alt border border-border-main rounded-xl px-4 py-2.5 text-sm text-text-primary input-interactive focus:outline-none"
               />
             </div>
+            <div>
+              <label className="block text-text-secondary text-xs font-bold mb-2 uppercase tracking-wide">
+                Event Status
+              </label>
+              <select
+                value={editStatus}
+                onChange={(e) => setEditStatus(e.target.value as any)}
+                className="w-full bg-bg-panel-alt border border-border-main rounded-xl px-4 py-2.5 text-sm text-text-primary input-interactive focus:outline-none cursor-pointer"
+              >
+                <option value="ACTIVE">Active (Accepting Registrations)</option>
+                <option value="INACTIVE">Inactive (Hidden / Draft)</option>
+                <option value="CLOSED">Closed (Registration Ended)</option>
+              </select>
+            </div>
           </div>
 
           <div>
@@ -727,6 +820,137 @@ export default function EditEventModal({ event, onClose }: EditEventModalProps) 
                 </option>
               ))}
             </select>
+          </div>
+
+          <section className="space-y-4 rounded-2xl border border-border-main bg-bg-panel-alt/40 p-4 md:p-5">
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-[0.18em] text-accent-primary">Registration experience</p>
+              <h4 className="mt-1 text-sm font-bold text-text-primary">Make this form feel like your event</h4>
+              <p className="mt-1 text-xs leading-relaxed text-text-secondary">Set a clear invitation, call to action, density, and visual theme. The event page preview updates as soon as you save.</p>
+            </div>
+
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <div>
+                <label className="block text-text-secondary text-[10px] font-bold mb-2 uppercase tracking-wide">Event theme</label>
+                <select
+                  value={editThemeId}
+                  onChange={(e) => setEditThemeId(e.target.value)}
+                  className="w-full bg-bg-panel border border-border-main rounded-xl px-4 py-2.5 text-sm text-text-primary focus:outline-none focus:border-accent-primary transition cursor-pointer"
+                >
+                  <option value="inherit">Inherit hub theme</option>
+                  {themes.map((theme) => <option key={theme.id} value={theme.id}>{theme.name}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-text-secondary text-[10px] font-bold mb-2 uppercase tracking-wide">Field spacing</label>
+                <div className="grid grid-cols-2 rounded-xl border border-border-main bg-bg-panel p-1">
+                  {(["COMFORTABLE", "COMPACT"] as const).map((density) => (
+                    <button
+                      key={density}
+                      type="button"
+                      onClick={() => setEditFormDensity(density)}
+                      className={`rounded-lg px-3 py-2 text-[10px] font-bold transition cursor-pointer ${editFormDensity === density ? "bg-accent-primary text-white shadow-sm" : "text-text-secondary hover:text-text-primary"}`}
+                    >
+                      {density === "COMFORTABLE" ? "Comfortable" : "Compact"}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <div>
+                <label className="block text-text-secondary text-[10px] font-bold mb-2 uppercase tracking-wide">Form heading</label>
+                <input value={editRegistrationTitle} maxLength={80} onChange={(e) => setEditRegistrationTitle(e.target.value)} className="w-full bg-bg-panel border border-border-main rounded-xl px-4 py-2.5 text-sm text-text-primary focus:outline-none focus:border-accent-primary" />
+              </div>
+              <div>
+                <label className="block text-text-secondary text-[10px] font-bold mb-2 uppercase tracking-wide">Button label</label>
+                <input value={editRegistrationButtonLabel} maxLength={40} onChange={(e) => setEditRegistrationButtonLabel(e.target.value)} className="w-full bg-bg-panel border border-border-main rounded-xl px-4 py-2.5 text-sm text-text-primary focus:outline-none focus:border-accent-primary" />
+              </div>
+            </div>
+            <div>
+              <label className="block text-text-secondary text-[10px] font-bold mb-2 uppercase tracking-wide">Supporting copy</label>
+              <textarea value={editRegistrationDescription} maxLength={180} rows={2} onChange={(e) => setEditRegistrationDescription(e.target.value)} className="w-full resize-none bg-bg-panel border border-border-main rounded-xl px-4 py-2.5 text-sm text-text-primary focus:outline-none focus:border-accent-primary" />
+              <p className="mt-1 text-right text-[10px] text-text-muted">{editRegistrationDescription.length}/180</p>
+            </div>
+          </section>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-text-secondary text-xs font-bold mb-2 uppercase tracking-wide">
+                Registration Close Option
+              </label>
+              <select
+                value={editDeadlineType}
+                onChange={(e) => setEditDeadlineType(e.target.value as any)}
+                className="w-full bg-bg-panel-alt border border-border-main rounded-xl px-4 py-2.5 text-sm text-text-primary focus:outline-none focus:border-accent-primary transition cursor-pointer"
+              >
+                <option value="start">At Event Start</option>
+                <option value="1h">1 Hour before event</option>
+                <option value="6h">6 Hours before event</option>
+                <option value="24h">24 Hours before event</option>
+                <option value="custom">Custom Date & Time</option>
+              </select>
+            </div>
+
+            {editDeadlineType === "custom" ? (
+              <div>
+                <label className="block text-text-secondary text-xs font-bold mb-2 uppercase tracking-wide">
+                  Custom Registration Deadline *
+                </label>
+                <input
+                  type="datetime-local"
+                  required
+                  className="w-full bg-bg-panel-alt border border-border-main rounded-xl px-4 py-2.5 text-sm text-text-primary focus:outline-none"
+                  value={editCustomDeadline}
+                  onChange={(e) => setEditCustomDeadline(e.target.value)}
+                />
+              </div>
+            ) : (
+              <div>
+                <label className="block text-text-secondary text-xs font-bold mb-2 uppercase tracking-wide opacity-50">
+                  Calculated Deadline Preview
+                </label>
+                <div className="w-full bg-bg-panel-alt border border-border-main/50 rounded-xl px-4 py-[11px] text-xs font-semibold text-text-secondary opacity-60">
+                  {editDate ? (
+                    (() => {
+                      const eventTime = new Date(editDate).getTime();
+                      let dDate: Date;
+                      if (editDeadlineType === "start") dDate = new Date(eventTime);
+                      else if (editDeadlineType === "1h") dDate = new Date(eventTime - 60 * 60 * 1000);
+                      else if (editDeadlineType === "6h") dDate = new Date(eventTime - 6 * 60 * 60 * 1000);
+                      else dDate = new Date(eventTime - 24 * 60 * 60 * 1000);
+                      return dDate.toLocaleString();
+                    })()
+                  ) : (
+                    "Please set event date to see preview"
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="md:col-span-2">
+            <label className="flex items-center justify-between p-4 rounded-xl bg-bg-panel-alt border border-border-main hover:bg-bg-panel-hover transition cursor-pointer select-none">
+              <div className="space-y-0.5">
+                <span className="text-xs font-bold text-text-primary block">Feature this Event</span>
+                <span className="text-[10px] text-text-secondary block">
+                  Display prominently at the top of your standalone hub directory. Maximum 3 active featured events.
+                </span>
+                {events.filter((e) => e.isFeatured && e.status === "ACTIVE" && e.id !== event.id).length >= 3 && (
+                  <span className="text-[9px] text-amber-500 font-semibold block mt-1">
+                    ⚠️ Limit reached (3/3 active featured). To feature this event, you will need to unfeature another active event first.
+                  </span>
+                )}
+              </div>
+              <input
+                type="checkbox"
+                checked={editIsFeatured}
+                disabled={events.filter((e) => e.isFeatured && e.status === "ACTIVE" && e.id !== event.id).length >= 3 && !editIsFeatured}
+                onChange={(e) => setEditIsFeatured(e.target.checked)}
+                className="w-4 h-4 rounded text-accent-primary focus:ring-accent-primary border-border-main bg-bg-panel-alt cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+              />
+            </label>
           </div>
 
           {/* Save button block */}
@@ -955,6 +1179,11 @@ export default function EditEventModal({ event, onClose }: EditEventModalProps) 
                                   <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold font-mono bg-accent-primary/10 text-accent-primary border border-accent-primary/20 uppercase select-none">
                                     {field.type}
                                   </span>
+                                  {field.isIdentityField && (
+                                    <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold font-mono bg-amber-500/10 text-amber-500 border border-amber-500/20 uppercase select-none" title="Unique identity field">
+                                      Identity
+                                    </span>
+                                  )}
                                 </div>
                                 <div className="text-xs text-text-secondary truncate mt-0.5">
                                   {field.placeholder && `Placeholder: "${field.placeholder}"`}
@@ -1054,18 +1283,33 @@ export default function EditEventModal({ event, onClose }: EditEventModalProps) 
                                       </div>
                                     )}
 
-                                    <div className="flex justify-between items-center pt-1.5">
-                                      <label className="flex items-center gap-2 cursor-pointer select-none">
-                                        <input
-                                          type="checkbox"
-                                          checked={editFieldRequired}
-                                          onChange={(e) => setEditFieldRequired(e.target.checked)}
-                                          className="accent-accent-primary rounded border-border-main bg-bg-panel-alt"
-                                        />
-                                        <span className="text-xs text-text-secondary font-semibold">
-                                          Mark field as Required
-                                        </span>
-                                      </label>
+                                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 pt-1.5">
+                                      <div className="flex flex-wrap items-center gap-4">
+                                        <label className="flex items-center gap-2 cursor-pointer select-none">
+                                          <input
+                                            type="checkbox"
+                                            checked={editFieldRequired}
+                                            onChange={(e) => setEditFieldRequired(e.target.checked)}
+                                            className="accent-accent-primary rounded border-border-main bg-bg-panel-alt"
+                                          />
+                                          <span className="text-xs text-text-secondary font-semibold">
+                                            Required field
+                                          </span>
+                                        </label>
+                                        {editFieldType === "EMAIL" && (
+                                          <label className="flex items-center gap-2 cursor-pointer select-none">
+                                            <input
+                                              type="checkbox"
+                                              checked={editFieldIsIdentity}
+                                              onChange={(e) => setEditFieldIsIdentity(e.target.checked)}
+                                              className="accent-accent-primary rounded border-border-main bg-bg-panel-alt"
+                                            />
+                                            <span className="text-xs text-amber-500 font-semibold">
+                                              Identity Field (prevents duplicates)
+                                            </span>
+                                          </label>
+                                        )}
+                                      </div>
 
                                       <div className="flex gap-2">
                                         <button

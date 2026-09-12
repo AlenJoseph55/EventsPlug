@@ -1,35 +1,67 @@
 @import "tailwindcss";
 
-:root {
-  /* Default Dark Admin Palette - Tinted Midnight Blue */
-  --background: oklch(11% 0.015 245);
-  --foreground: oklch(98% 0.005 245);
+:root,
+.light-admin {
+  /* Unified Warm Minimalist Palette (Identical to Landing Page #FAF9F5) */
+  --background: #FAF9F5;
+  --foreground: #171717;
   
-  --bg-app: oklch(11% 0.015 245);
-  --bg-panel: oklch(16% 0.02 245);
-  --bg-panel-hover: oklch(20% 0.025 245);
-  --bg-panel-alt: oklch(9% 0.015 245);
-  --text-primary: oklch(98% 0.005 245);
-  --text-secondary: oklch(75% 0.015 245);
-  --text-muted: oklch(55% 0.015 245);
-  --border-main: oklch(22% 0.025 245);
-  --border-muted: oklch(16% 0.02 245);
-  --accent-primary: oklch(60% 0.22 250);
-  --accent-hover: oklch(53% 0.22 250);
-  --dot-color: rgba(248, 250, 252, 0.035);
-  
+  --bg-app: #FAF9F5;
+  --bg-panel: #FFFFFF;
+  --bg-panel-hover: #F5F4EF;
+  --bg-panel-alt: #F5F4EF;
+  --text-primary: #171717;
+  --text-secondary: #525252;
+  --text-muted: #8E8D8A;
+  --border-main: #E5E5E0;
+  --border-muted: #EFEFEA;
+  --accent-primary: #171717;
+  --accent-hover: #262626;
+  --dot-color: rgba(23, 23, 23, 0.04);
+
   /* Status Semantics */
-  --color-success-bg: oklch(20% 0.05 140 / 0.2);
-  --color-success-text: oklch(75% 0.15 140);
-  --color-success-border: oklch(70% 0.15 140 / 0.3);
+  --color-success-bg: rgba(16, 185, 129, 0.1);
+  --color-success-text: #047857;
+  --color-success-border: rgba(16, 185, 129, 0.25);
   
-  --color-danger-bg: oklch(20% 0.05 25 / 0.2);
-  --color-danger-text: oklch(70% 0.18 25);
-  --color-danger-border: oklch(65% 0.18 25 / 0.3);
+  --color-danger-bg: rgba(239, 68, 68, 0.1);
+  --color-danger-text: #B91C1C;
+  --color-danger-border: rgba(239, 68, 68, 0.25);
   
-  --color-warning-bg: oklch(22% 0.05 70 / 0.2);
-  --color-warning-text: oklch(78% 0.16 70);
-  --color-warning-border: oklch(73% 0.16 70 / 0.3);
+  --color-warning-bg: rgba(245, 158, 11, 0.1);
+  --color-warning-text: #B45309;
+  --color-warning-border: rgba(245, 158, 11, 0.25);
+}
+
+.dark-admin {
+  /* Warm Charcoal Dark Palette (Minimalist Dark Mode) */
+  --background: #141413;
+  --foreground: #F5F5F0;
+  
+  --bg-app: #141413;
+  --bg-panel: #1C1C1A;
+  --bg-panel-hover: #242422;
+  --bg-panel-alt: #242422;
+  --text-primary: #F5F5F0;
+  --text-secondary: #A3A39E;
+  --text-muted: #73736E;
+  --border-main: #2E2E2A;
+  --border-muted: #242420;
+  --accent-primary: #F5F5F0;
+  --accent-hover: #E5E5DE;
+  --dot-color: rgba(245, 245, 240, 0.04);
+
+  --color-success-bg: rgba(16, 185, 129, 0.15);
+  --color-success-text: #34D399;
+  --color-success-border: rgba(16, 185, 129, 0.3);
+  
+  --color-danger-bg: rgba(239, 68, 68, 0.15);
+  --color-danger-text: #F87171;
+  --color-danger-border: rgba(239, 68, 68, 0.3);
+  
+  --color-warning-bg: rgba(245, 158, 11, 0.15);
+  --color-warning-text: #FBBF24;
+  --color-warning-border: rgba(245, 158, 11, 0.3);
 }
 
 /* ── Prevent dark→light flash on public hub/event pages ──
@@ -38,87 +70,54 @@
    and full-screen <main> never flash the wrong background color.         */
 
 html.light-hub {
-  --background: #f8fafc;
-  --foreground: #0f172a;
+  --background: #FAF9F5;
+  --foreground: #171717;
   color-scheme: light;
 
-  /* Hub CSS-variable defaults for light mode (before styled-jsx mounts) */
-  --hub-bg-color: #f8fafc;
-  --hub-text-color: #0f172a;
-  --hub-card-bg: rgba(255, 255, 255, 0.75);
-  --hub-card-border: rgba(15, 23, 42, 0.08);
+  --hub-bg-color: #FAF9F5;
+  --hub-text-color: #171717;
+  --hub-card-bg: rgba(255, 255, 255, 0.85);
+  --hub-card-border: rgba(23, 23, 23, 0.08);
 }
 
-/* Force light background on the main element even when it has dark inline styles from SSR */
 html.light-hub body,
 html.light-hub main {
-  background-color: #f8fafc !important;
-  color: #0f172a !important;
+  background-color: #FAF9F5 !important;
+  color: #171717 !important;
 }
 
 html.dark-hub {
   color-scheme: dark;
 }
 
-.light-admin {
-  /* Light Mode Overrides - Tinted Soft Ice Blue */
-  --background: oklch(98.5% 0.008 245);
-  --foreground: oklch(16% 0.015 245);
-  
-  --bg-app: oklch(98.5% 0.008 245);
-  --bg-panel: oklch(100% 0 0);
-  --bg-panel-hover: oklch(96.5% 0.01 245);
-  --bg-panel-alt: oklch(96.5% 0.01 245);
-  --text-primary: oklch(16% 0.015 245);
-  --text-secondary: oklch(48% 0.015 245);
-  --text-muted: oklch(68% 0.012 245);
-  --border-main: oklch(92% 0.015 245);
-  --border-muted: oklch(96.5% 0.01 245);
-  --accent-primary: oklch(55% 0.20 250);
-  --accent-hover: oklch(48% 0.20 250);
-  --dot-color: rgba(15, 23, 42, 0.05);
-
-  --color-success-bg: oklch(96% 0.02 140);
-  --color-success-text: oklch(45% 0.12 140);
-  --color-success-border: oklch(88% 0.06 140);
-  
-  --color-danger-bg: oklch(96% 0.02 25);
-  --color-danger-text: oklch(45% 0.14 25);
-  --color-danger-border: oklch(90% 0.06 25);
-  
-  --color-warning-bg: oklch(97% 0.02 70);
-  --color-warning-text: oklch(45% 0.12 70);
-  --color-warning-border: oklch(91% 0.06 70);
-}
-
 /* Forces dark mode context for mockup previews, regardless of root theme */
 .dark-preview {
-  --background: oklch(11% 0.015 245);
-  --foreground: oklch(98% 0.005 245);
-  --bg-app: oklch(11% 0.015 245);
-  --bg-panel: oklch(16% 0.02 245);
-  --bg-panel-hover: oklch(20% 0.025 245);
-  --bg-panel-alt: oklch(9% 0.015 245);
-  --text-primary: oklch(98% 0.005 245);
-  --text-secondary: oklch(75% 0.015 245);
-  --text-muted: oklch(55% 0.015 245);
-  --border-main: oklch(22% 0.025 245);
-  --border-muted: oklch(16% 0.02 245);
-  --accent-primary: oklch(60% 0.22 250);
-  --accent-hover: oklch(53% 0.22 250);
-  --dot-color: rgba(248, 250, 252, 0.035);
+  --background: #141413;
+  --foreground: #F5F5F0;
+  --bg-app: #141413;
+  --bg-panel: #1C1C1A;
+  --bg-panel-hover: #242422;
+  --bg-panel-alt: #242422;
+  --text-primary: #F5F5F0;
+  --text-secondary: #A3A39E;
+  --text-muted: #73736E;
+  --border-main: #2E2E2A;
+  --border-muted: #242420;
+  --accent-primary: #F5F5F0;
+  --accent-hover: #E5E5DE;
+  --dot-color: rgba(245, 245, 240, 0.04);
 
-  --color-success-bg: oklch(20% 0.05 140 / 0.2);
-  --color-success-text: oklch(75% 0.15 140);
-  --color-success-border: oklch(70% 0.15 140 / 0.3);
+  --color-success-bg: rgba(16, 185, 129, 0.15);
+  --color-success-text: #34D399;
+  --color-success-border: rgba(16, 185, 129, 0.3);
 
-  --color-danger-bg: oklch(20% 0.05 25 / 0.2);
-  --color-danger-text: oklch(70% 0.18 25);
-  --color-danger-border: oklch(65% 0.18 25 / 0.3);
+  --color-danger-bg: rgba(239, 68, 68, 0.15);
+  --color-danger-text: #F87171;
+  --color-danger-border: rgba(239, 68, 68, 0.3);
 
-  --color-warning-bg: oklch(22% 0.05 70 / 0.2);
-  --color-warning-text: oklch(78% 0.16 70);
-  --color-warning-border: oklch(73% 0.16 70 / 0.3);
+  --color-warning-bg: rgba(245, 158, 11, 0.15);
+  --color-warning-text: #FBBF24;
+  --color-warning-border: rgba(245, 158, 11, 0.3);
 }
 
 @theme inline {

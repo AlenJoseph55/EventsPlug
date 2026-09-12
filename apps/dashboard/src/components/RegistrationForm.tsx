@@ -17,6 +17,8 @@ interface RegistrationFormProps {
     id: string;
     title: string;
     formFields?: FormField[];
+    registrationButtonLabel?: string | null;
+    formDensity?: "COMPACT" | "COMFORTABLE";
   };
   preview?: boolean;
   onSubmitSuccess?: (registration: any) => void;
@@ -177,6 +179,7 @@ export default function RegistrationForm({
   };
 
   const isBgDark = isColorDark(cardBg);
+  const isCompact = event.formDensity === "COMPACT";
 
   const inputStyles = {
     backgroundColor: isBgDark ? "rgba(0, 0, 0, 0.25)" : "rgba(0, 0, 0, 0.03)",
@@ -189,7 +192,7 @@ export default function RegistrationForm({
   return (
     <form 
       onSubmit={handleSubmit} 
-      className={`space-y-4 ${preview ? "pointer-events-none select-none" : ""}`}
+      className={`${isCompact ? "space-y-3" : "space-y-4"} ${preview ? "pointer-events-none select-none" : ""}`}
     >
       {error && (
         <div className="p-3 rounded-xl bg-red-950/40 border border-red-900/60 text-red-400 text-xs font-semibold leading-relaxed">
@@ -197,7 +200,7 @@ export default function RegistrationForm({
         </div>
       )}
 
-      <div className="space-y-4">
+      <div className={isCompact ? "space-y-3" : "space-y-4"}>
         {fields.map((field) => {
           const isCheckbox = field.type === "CHECKBOX";
 
@@ -222,7 +225,7 @@ export default function RegistrationForm({
                   value={answers[field.id] || ""}
                   onChange={(e) => handleInputChange(field.id, e.target.value)}
                   style={inputStyles}
-                  className="w-full border rounded-xl px-4 py-2.5 text-sm placeholder:text-current placeholder:opacity-40 focus:outline-none focus:border-slate-700 transition-colors"
+                  className={`w-full border rounded-xl px-4 ${isCompact ? "py-2" : "py-2.5"} text-sm placeholder:text-current placeholder:opacity-40 focus:outline-none focus:border-slate-700 transition-colors`}
                 />
               )}
 
@@ -236,7 +239,7 @@ export default function RegistrationForm({
                   value={answers[field.id] || ""}
                   onChange={(e) => handleInputChange(field.id, e.target.value)}
                   style={inputStyles}
-                  className="w-full border rounded-xl px-4 py-2.5 text-sm placeholder:text-current placeholder:opacity-40 focus:outline-none focus:border-slate-700 transition-colors"
+                  className={`w-full border rounded-xl px-4 ${isCompact ? "py-2" : "py-2.5"} text-sm placeholder:text-current placeholder:opacity-40 focus:outline-none focus:border-slate-700 transition-colors`}
                 />
               )}
 
@@ -250,7 +253,7 @@ export default function RegistrationForm({
                   value={answers[field.id] || ""}
                   onChange={(e) => handleInputChange(field.id, e.target.value)}
                   style={inputStyles}
-                  className="w-full border rounded-xl px-4 py-2.5 text-sm placeholder:text-current placeholder:opacity-40 focus:outline-none focus:border-slate-700 transition-colors"
+                  className={`w-full border rounded-xl px-4 ${isCompact ? "py-2" : "py-2.5"} text-sm placeholder:text-current placeholder:opacity-40 focus:outline-none focus:border-slate-700 transition-colors`}
                 />
               )}
 
@@ -264,7 +267,7 @@ export default function RegistrationForm({
                   value={answers[field.id] || ""}
                   onChange={(e) => handleInputChange(field.id, e.target.value)}
                   style={inputStyles}
-                  className="w-full border rounded-xl px-4 py-2.5 text-sm placeholder:text-current placeholder:opacity-40 focus:outline-none focus:border-slate-700 transition-colors resize-none"
+                  className={`w-full border rounded-xl px-4 ${isCompact ? "py-2" : "py-2.5"} text-sm placeholder:text-current placeholder:opacity-40 focus:outline-none focus:border-slate-700 transition-colors resize-none`}
                 />
               )}
 
@@ -288,7 +291,7 @@ export default function RegistrationForm({
                     value={answers[field.id] || ""}
                     onChange={(e) => handleInputChange(field.id, e.target.value)}
                     style={inputStyles}
-                    className="w-full border rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-slate-700 transition-colors appearance-none cursor-pointer"
+                    className={`w-full border rounded-xl px-4 ${isCompact ? "py-2" : "py-2.5"} text-sm focus:outline-none focus:border-slate-700 transition-colors appearance-none cursor-pointer`}
                   >
                     <option 
                       value="" 
@@ -352,7 +355,7 @@ export default function RegistrationForm({
             <span className="animate-spin text-sm">🌀</span> Registering...
           </span>
         ) : (
-          "Register Seat (Free)"
+          event.registrationButtonLabel || "Register now"
         )}
       </button>
     </form>

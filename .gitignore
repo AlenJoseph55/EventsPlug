@@ -10,3 +10,4 @@ dist
 .cursor/
 .gemini/
 .kiro/
+.DS_Store

@@ -38,6 +38,9 @@ export default function CreateEventTab({ onBackToOverview }: CreateEventTabProps
   const [date, setDate] = useState("");
   const [location, setLocation] = useState("");
   const [maxRegistrations, setMaxRegistrations] = useState("");
+  const [isFeatured, setIsFeatured] = useState(false);
+  const [deadlineType, setDeadlineType] = useState<"start" | "1h" | "6h" | "24h" | "custom">("start");
+  const [customDeadline, setCustomDeadline] = useState("");
   const [wizardAutoFitImage, setWizardAutoFitImage] = useState("inherit");
   const [formTemplateId, setFormTemplateId] = useState("INDIVIDUAL");
 
@@ -85,6 +88,22 @@ export default function CreateEventTab({ onBackToOverview }: CreateEventTabProps
     e.preventDefault();
     setWizardError(null);
 
+    let calculatedDeadline: string | undefined = undefined;
+    if (date) {
+      const eventTime = new Date(date).getTime();
+      if (deadlineType === "start") {
+        calculatedDeadline = new Date(eventTime).toISOString();
+      } else if (deadlineType === "1h") {
+        calculatedDeadline = new Date(eventTime - 60 * 60 * 1000).toISOString();
+      } else if (deadlineType === "6h") {
+        calculatedDeadline = new Date(eventTime - 6 * 60 * 60 * 1000).toISOString();
+      } else if (deadlineType === "24h") {
+        calculatedDeadline = new Date(eventTime - 24 * 60 * 60 * 1000).toISOString();
+      } else if (deadlineType === "custom" && customDeadline) {
+        calculatedDeadline = new Date(customDeadline).toISOString();
+      }
+    }
+
     const payload = {
       title,
       description,
@@ -92,9 +111,10 @@ export default function CreateEventTab({ onBackToOverview }: CreateEventTabProps
       location,
       posterUrl: posterUrl || undefined,
       maxRegistrations: maxRegistrations ? parseInt(maxRegistrations, 10) : undefined,
+      registrationDeadline: calculatedDeadline,
       templatePreset: formTemplateId,
-      autoFitImage: wizardAutoFitImage === "inherit" ? null : wizardAutoFitImage === "true",
     };
+
 
     try {
       let eventData;
@@ -670,6 +690,81 @@ export default function CreateEventTab({ onBackToOverview }: CreateEventTabProps
                 <option value="true">Force Auto-Fit (Preserve aspect ratio)</option>
                 <option value="false">Force Cropped Cover (Standard height constraint)</option>
               </select>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold uppercase tracking-wider text-text-secondary mb-2">
+                Registration Close Option
+              </label>
+              <select
+                value={deadlineType}
+                onChange={(e) => setDeadlineType(e.target.value as any)}
+                className="w-full bg-bg-panel-alt border border-border-main rounded-xl py-3 px-4 text-text-primary focus:outline-none focus:border-accent-primary cursor-pointer"
+              >
+                <option value="start">At Event Start</option>
+                <option value="1h">1 Hour before event</option>
+                <option value="6h">6 Hours before event</option>
+                <option value="24h">24 Hours before event</option>
+                <option value="custom">Custom Date & Time</option>
+              </select>
+            </div>
+
+            {deadlineType === "custom" ? (
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider text-text-secondary mb-2">
+                  Custom Registration Deadline *
+                </label>
+                <input
+                  type="datetime-local"
+                  required
+                  className="w-full bg-bg-panel-alt border border-border-main rounded-xl py-3 px-4 text-text-primary focus:outline-none focus:border-accent-primary"
+                  value={customDeadline}
+                  onChange={(e) => setCustomDeadline(e.target.value)}
+                />
+              </div>
+            ) : (
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider text-text-secondary mb-2 opacity-50">
+                  Calculated Deadline Preview
+                </label>
+                <div className="w-full bg-bg-panel-alt border border-border-main/50 rounded-xl py-3 px-4 text-xs font-semibold text-text-secondary opacity-60">
+                  {date ? (
+                    (() => {
+                      const eventTime = new Date(date).getTime();
+                      let dDate: Date;
+                      if (deadlineType === "start") dDate = new Date(eventTime);
+                      else if (deadlineType === "1h") dDate = new Date(eventTime - 60 * 60 * 1000);
+                      else if (deadlineType === "6h") dDate = new Date(eventTime - 6 * 60 * 60 * 1000);
+                      else dDate = new Date(eventTime - 24 * 60 * 60 * 1000);
+                      return dDate.toLocaleString();
+                    })()
+                  ) : (
+                    "Please set event date to see preview"
+                  )}
+                </div>
+              </div>
+            )}
+
+            <div className="md:col-span-2">
+              <label className="flex items-center justify-between p-4 rounded-xl bg-bg-panel-alt border border-border-main hover:bg-bg-panel-hover transition cursor-pointer select-none">
+                <div className="space-y-0.5">
+                  <span className="text-xs font-bold text-text-primary block">Feature this Event</span>
+                  <span className="text-[10px] text-text-secondary block">
+                    Display prominently at the top of your standalone hub directory. Maximum 3 active featured events.
+                  </span>
+                  {events.filter((e) => e.isFeatured && e.status === "ACTIVE").length >= 3 && (
+                    <span className="text-[9px] text-amber-500 font-semibold block mt-1">
+                      ⚠️ Limit reached (3/3 active featured). To activate this event as featured, you will need to unfeature another active event first.
+                    </span>
+                  )}
+                </div>
+                <input
+                  type="checkbox"
+                  checked={isFeatured}
+                  onChange={(e) => setIsFeatured(e.target.checked)}
+                  className="w-4 h-4 rounded text-accent-primary focus:ring-accent-primary border-border-main bg-bg-panel-alt cursor-pointer"
+                />
+              </label>
             </div>
           </div>
 

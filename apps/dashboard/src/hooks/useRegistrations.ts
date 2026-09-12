@@ -7,8 +7,16 @@ import { useToast } from "@/providers/ToastProvider";
 export interface Registration {
   id: string;
   eventId: string;
-  email: string;
-  name: string;
+  email?: string;
+  name?: string;
+  status: "CONFIRMED" | "CANCELLED" | "REGISTERED" | "WAITLISTED" | "CHECKED_IN";
+  identityValue?: string;
+  identityType?: string | null;
+  paymentStatus?: string;
+  paymentTxnId?: string | null;
+  checkedInAt?: string | null;
+  cancelledAt?: string | null;
+  promotedAt?: string | null;
   createdAt: string;
   answers?: any; // Dynamic field answers
 }
@@ -18,7 +26,7 @@ export function useRegistrations(eventId?: string) {
   const { showToast } = useToast();
 
   // Fetch registrations query
-  const registrationsQuery = useQuery<Registration[]>({
+  const registrationsQuery = useQuery<{ data: Registration[]; nextCursor?: string | null } | Registration[]>({
     queryKey: ["registrations", eventId],
     queryFn: async () => {
       const res = await fetch(`${apiBase}/events/${eventId}/registrations`, {
@@ -60,11 +68,71 @@ export function useRegistrations(eventId?: string) {
     }
   };
 
+  const cancelRegistration = async (registrationId: string) => {
+    if (!token) return;
+
+    try {
+      const res = await fetch(`${apiBase}/registrations/${registrationId}/cancel`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      });
+
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.message || "Failed to cancel registration");
+      }
+
+      showToast("Registration cancelled successfully", "success");
+      await registrationsQuery.refetch();
+      return data;
+    } catch (err: any) {
+      showToast(err.message || "Error cancelling registration", "error");
+      throw err;
+    }
+  };
+
+  const checkInRegistration = async (targetEventId: string, registrationId: string) => {
+    if (!token) return;
+
+    try {
+      const res = await fetch(`${apiBase}/events/${targetEventId}/check-in`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ registrationId }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.message || "Check-in failed");
+      }
+
+      showToast("Attendee successfully checked in!", "success");
+      await registrationsQuery.refetch();
+      return data;
+    } catch (err: any) {
+      showToast(err.message || "Error checking in attendee", "error");
+      throw err;
+    }
+  };
+
+  const rawData = registrationsQuery.data;
+  const list: Registration[] = Array.isArray(rawData)
+    ? rawData
+    : (rawData && Array.isArray((rawData as any).data) ? (rawData as any).data : []);
+
   return {
-    registrations: registrationsQuery.data || [],
+    registrations: list,
     isLoading: registrationsQuery.isLoading,
     isError: registrationsQuery.isError,
     refetchRegistrations: registrationsQuery.refetch,
     exportCsv,
+    cancelRegistration,
+    checkInRegistration,
   };
 }

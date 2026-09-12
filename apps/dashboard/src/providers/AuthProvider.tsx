@@ -41,7 +41,7 @@ export const apiBase = "http://localhost:5001/api";
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [token, setToken] = useState<string | null>(null);
   const [user, setUser] = useState<SessionUser | null>(null);
-  const [adminTheme, setAdminTheme] = useState<"dark" | "light">("dark");
+  const [adminTheme, setAdminTheme] = useState<"dark" | "light">("light");
   const [activeTab, setActiveTab] = useState<string>("overview");
   const [viewMode, setViewMode] = useState<"organizer" | "system" | "attendee">("organizer");
   const [systemTab, setSystemTab] = useState<"tenants" | "themes">("tenants");

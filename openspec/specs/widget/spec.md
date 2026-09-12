@@ -1,38 +1,30 @@
 ## Purpose
-Defines the specifications for the embeddable `<event-widget>` custom HTML element, its responsive layouts (Grid, List, Carousel), dynamic form builder modal, client-side input validations, and registration confirmation.
+Defines the specifications for the embeddable `<events-plug-widget>` custom HTML element, its Shadow DOM styling protection, dynamic form builder rendering, client-side input validations, and response confirmation.
 
 ## Requirements
 
-### Requirement: Layout & Property Cascades
-The widget SHALL render events of the organization specified by the `org` attribute, applying the chosen `layout` (GRID, LIST, CAROUSEL) and conforming to the `limit` parameter.
+### Requirement: Embedded Custom HTML Element
+The widget SHALL render as a custom Web Component (`<events-plug-widget>` / `<event-widget>`) identified by an `event-id` or `event-slug` attribute.
 
-#### Scenario: Render Widget on Page Mount
-- **WHEN** the `<event-widget>` element is mounted in the host DOM with a valid `org` attribute
-- **THEN** it fetches events from the backend and renders them using layout-specific styling classes
+#### Scenario: Render Widget in Host DOM
+- **WHEN** the `<events-plug-widget>` element is mounted in a host webpage
+- **THEN** it initializes a Shadow DOM tree, preventing host CSS rule leakage or styling collisions
 
-#### Scenario: Apply Layout Attribute Overrides
-- **WHEN** the `layout` attribute is set to "LIST" or "CAROUSEL"
-- **THEN** the widget immediately updates its CSS structure to render in list columns or scrollable horizontal rows
+#### Scenario: Fetch Event Form Fields
+- **WHEN** the widget mounts with a valid `event-id` or `event-slug`
+- **THEN** it fetches the event title, description, and custom form field definitions from the backend
 
-#### Scenario: Display Event Capacity Indicator
-- **WHEN** an event defines a capacity limit (`maxRegistrations`)
-- **THEN** the widget displays a progress bar indicating filled seats vs total capacity
-
-### Requirement: Dynamic Registration Modal & Form Builder
-The widget SHALL render a dialog modal for registration, displaying inputs dynamically based on the event's custom form fields, and performing client-side validation before submission.
-
-#### Scenario: Open Registration Modal
-- **WHEN** an attendee clicks the register button on an event card
-- **THEN** a modal overlay opens and injects dynamic form fields matching the event's field definitions
+### Requirement: Dynamic Form Rendering & Submission
+The widget SHALL render dynamic input fields matching the event's form field definitions and perform client-side validation prior to submission.
 
 #### Scenario: Validate Form Inputs Inline
-- **WHEN** the attendee clicks submit and fields do not satisfy validation (e.g. empty required input, invalid email, or unchecked required terms checkbox)
-- **THEN** the widget prevents submission and displays inline error messages beneath the offending fields
+- **WHEN** the user submits the form and inputs do not satisfy field constraints
+- **THEN** the widget prevents network dispatch and displays inline validation warnings
 
-#### Scenario: Process Registration Submission
-- **WHEN** the form passes all client-side checks and is submitted
-- **THEN** it shows a loading indicator and posts the registration details to the API
+#### Scenario: Submit Form Responses
+- **WHEN** all client-side checks pass and the user submits
+- **THEN** it displays a clean loading state and posts the response payload to `/api/registrations`
 
-#### Scenario: Render Success Confirmation
-- **WHEN** the API returns a successful registration response
-- **THEN** the form is replaced by a success checkmark and confirmation message containing the attendee's registration code
+#### Scenario: Render Confirmation State
+- **WHEN** the submission succeeds
+- **THEN** the form elements transition into a success checkmark and confirmation note

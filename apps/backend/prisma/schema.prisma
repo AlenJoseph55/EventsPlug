@@ -11,6 +11,7 @@ enum EventStatus {
   ACTIVE
   INACTIVE
   DRAFT
+  CLOSED
 }
 
 enum UserRole {
@@ -26,41 +27,44 @@ enum OrganizationStatus {
   SUSPENDED
 }
 
-model Organization {
-  id             String                    @id @default(uuid())
-  slug           String                    @unique
-  name           String
-  logoUrl        String?
-  status         OrganizationStatus        @default(ACTIVE)
-  defaultThemeId String?
-  defaultTheme   WidgetTheme?              @relation("OrgDefaultTheme", fields: [defaultThemeId], references: [id], onDelete: SetNull)
-  defaultSkinId  String?
-  defaultSkin    WidgetSkin?               @relation("OrgDefaultSkin", fields: [defaultSkinId], references: [id], onDelete: SetNull)
-  defaultLayout  WidgetLayout              @default(GRID)
-  defaultLimit   Int?
-  
-  // Customization fields for the standalone hub directory page
-  hubTitle         String                    @default("Events Registry")
-  hubDescription   String                    @default("Welcome to our hub registry. Click on any active listing deck below to register for upcoming sessions and matches.")
-  hubLogoUrl       String?
-  hubIcon          String                    @default("🏫")
-  showCardDate     Boolean                   @default(true)
-  showCardLocation Boolean                 @default(true)
-  showCardCapacity Boolean                 @default(true)
-  hubLayout        WidgetLayout              @default(GRID)
-  hubThemeId       String?
-  hubTheme         WidgetTheme?              @relation("OrgHubTheme", fields: [hubThemeId], references: [id], onDelete: SetNull)
-  hubSkinId        String?
-  hubSkin          WidgetSkin?               @relation("OrgHubSkin", fields: [hubSkinId], references: [id], onDelete: SetNull)
-  hubBannerUrl     String?
-  hubThemeStyle    String                    @default("DOT_MATRIX")
-  autoFitImages    Boolean                   @default(true)
+enum PaymentGateway {
+  NONE
+  STRIPE
+  RAZORPAY
+  MANUAL_UPI
+}
 
-  createdAt      DateTime                  @default(now())
-  updatedAt      DateTime                  @updatedAt
-  events         Event[]
-  users          User[]
-  unlocks        OrganizationThemeUnlock[]
+enum PaymentStatus {
+  FREE
+  PENDING_PAYMENT
+  PAID
+  FAILED
+}
+
+enum RegistrationStatus {
+  CONFIRMED
+  CANCELLED
+}
+
+enum IdentityType {
+  EMAIL
+}
+
+model Organization {
+  id                String             @id @default(uuid())
+  slug              String             @unique
+  name              String
+  logoUrl           String?
+  status            OrganizationStatus @default(ACTIVE)
+  stripeAccountId   String?
+  razorpayKeyId     String?
+  razorpayKeySecret String?
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  events            Event[]
+  users             User[]
+  apiKeys           ApiKey[]
+  webhookEndpoints  WebhookEndpoint[]
 }
 
 model User {
@@ -75,26 +79,31 @@ model User {
 }
 
 model Event {
-  id               String         @id @default(uuid())
-  organizationId   String
-  organization     Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  title            String
-  slug             String
-  description      String
-  date             DateTime
-  location         String
-  posterUrl        String?
-  maxRegistrations Int?
-  status           EventStatus    @default(ACTIVE)
-  formFields       FormField[]    // Dynamically customizable field definitions
-  themeId          String?
-  theme            WidgetTheme?   @relation("EventThemeOverride", fields: [themeId], references: [id], onDelete: SetNull)
-  skinId           String?
-  skin             WidgetSkin?    @relation("EventSkinOverride", fields: [skinId], references: [id], onDelete: SetNull)
-  autoFitImage     Boolean?
-  createdAt        DateTime       @default(now())
-  updatedAt        DateTime       @updatedAt
-  registrations    Registration[]
+  id                      String         @id @default(uuid())
+  organizationId          String
+  organization            Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  title                   String
+  slug                    String
+  description             String
+  date                    DateTime?
+  location                String?
+  posterUrl               String?
+  accentColor             String         @default("#3b82f6")
+  maxRegistrations        Int?
+  registrationDeadline    DateTime?
+  status                  EventStatus    @default(ACTIVE)
+  registrationTitle       String?        @default("Reserve your place")
+  registrationDescription String?        @default("Complete the form below to confirm your spot.")
+  registrationButtonLabel String?        @default("Register now")
+  price                   Int            @default(0) // In cents or paisa
+  currency                String         @default("USD")
+  paymentGateway          PaymentGateway @default(NONE)
+  upiId                   String?
+  upiQrUrl                String?
+  formFields              FormField[]
+  createdAt               DateTime       @default(now())
+  updatedAt               DateTime       @updatedAt
+  registrations           Registration[]
 
   @@unique([organizationId, slug])
 }
@@ -109,78 +118,67 @@ enum FieldType {
 }
 
 model FormField {
-  id          String    @id @default(uuid())
-  eventId     String
-  event       Event     @relation(fields: [eventId], references: [id], onDelete: Cascade)
-  type        FieldType
-  label       String
-  placeholder String?
-  required    Boolean   @default(false)
-  options     Json?     @default("[]") // Portable dropdown list: string[]
-  order       Int       @default(0)
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  id              String    @id @default(uuid())
+  eventId         String
+  event           Event     @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  type            FieldType
+  label           String
+  placeholder     String?
+  required        Boolean   @default(false)
+  options         Json?     @default("[]") // string[]
+  order           Int       @default(0)
+  isIdentityField Boolean   @default(false)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 }
 
 model Registration {
-  id        String   @id @default(uuid())
-  eventId   String
-  event     Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
-  answers   Json     // Form submission JSON, e.g. { "field-uuid-1": "Bob" }
-  createdAt DateTime @default(now())
+  id              String             @id @default(uuid())
+  eventId         String
+  event           Event              @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  answers         Json               // key-value form response map
+  paymentStatus   PaymentStatus      @default(FREE)
+  paymentAmount   Int?
+  currency        String?
+  paymentTxnId    String?
+  paymentProofUrl String?
+  status          RegistrationStatus @default(CONFIRMED)
+  identityValue   String?
+  identityType    IdentityType?
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @default(now()) @updatedAt
+
+  @@unique([eventId, identityValue])
 }
 
-model WidgetTheme {
-  id             String                   @id @default(uuid())
-  name           String
-  slug           String                   @unique
-  isPremium      Boolean                  @default(false)
-  price          Int                      @default(0) // Integer cents (e.g., 999 = $9.99)
-  baseMode       String?                  @default("dark")
-  accentHue      Int?                     @default(221)
-  accentChroma   Float?                   @default(0.28)
-  surfaceTone    String?                  @default("deep")
-  skinId         String?                  @default("frosted")
-  fontPairingId  String?                  @default("inter-mono")
-  cssVariables   Json?                    // Deprecated: legacy CSS variables fallback
-  createdAt      DateTime                 @default(now())
-  updatedAt      DateTime                 @updatedAt
-  orgDefaults    Organization[]           @relation("OrgDefaultTheme")
-  hubOrgDefaults Organization[]           @relation("OrgHubTheme")
-  eventOverrides Event[]                  @relation("EventThemeOverride")
-  unlocks        OrganizationThemeUnlock[]
-}
-
-model OrganizationThemeUnlock {
+model ApiKey {
   id             String       @id @default(uuid())
   organizationId String
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  themeId        String
-  theme          WidgetTheme  @relation(fields: [themeId], references: [id], onDelete: Cascade)
-  purchasedAt    DateTime     @default(now())
-
-  @@unique([organizationId, themeId])
-}
-
-model WidgetSkin {
-  id             String         @id @default(uuid())
+  keyHash        String       @unique
+  keyPrefix      String
   name           String
-  slug           String         @unique
-  borderRadius   String         // e.g. "0px", "8px", "16px", "24px"
-  borderStyle    String         // e.g. "solid", "none", "double"
-  borderWidth    String         // e.g. "1px", "2px"
-  shadowStyle    String         // e.g. "none", "brutalist", "frosted"
-  fontFamily     String         // e.g. "var(--font-sans)", "var(--font-display)"
-  backdropStyle  String         // e.g. "DOT_MATRIX", "GRID_WARP", "AURORA_GLOW"
-  createdAt      DateTime       @default(now())
-  updatedAt      DateTime       @updatedAt
-  orgDefaults    Organization[] @relation("OrgDefaultSkin")
-  hubOrgDefaults Organization[] @relation("OrgHubSkin")
-  eventOverrides Event[]        @relation("EventSkinOverride")
+  lastUsedAt     DateTime?
+  revokedAt      DateTime?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@index([organizationId])
 }
 
-enum WidgetLayout {
-  GRID
-  LIST
-  CAROUSEL
+model WebhookEndpoint {
+  id             String       @id @default(uuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  url            String
+  name           String?
+  signingSecret  String
+  lastFailedAt   DateTime?
+  revokedAt      DateTime?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@index([organizationId])
 }
+
+

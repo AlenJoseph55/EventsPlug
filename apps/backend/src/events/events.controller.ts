@@ -6,18 +6,19 @@ import {
   Delete,
   Body,
   Param,
+  Query,
   UseGuards,
   Req,
   Res,
   BadRequestException,
   NotFoundException,
 } from '@nestjs/common';
-import { AuthGuard } from '@nestjs/passport';
 import { Response } from 'express';
 import { EventsService, CreateEventDto } from './events.service';
 import { ActiveOrgGuard } from '../auth/active-org.guard';
 import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
+import { JwtOrApiKeyGuard } from '../auth/jwt-or-api-key.guard';
 import { UserRole } from '@eventflow/types';
 import { PrismaService } from '../prisma.service';
 import { FORM_TEMPLATES } from '@eventflow/templates';
@@ -44,8 +45,14 @@ export class EventsController {
     return this.eventsService.findByOrgAndSlug(slug, eventSlug);
   }
 
+  // 2b. Public endpoint - Get single event detail by ID (used by event-scoped widget)
+  @Get('events/:eventId/public')
+  async getEventPublicDetail(@Param('eventId') eventId: string) {
+    return this.eventsService.findPublicById(eventId);
+  }
+
   // 3. Protected endpoint - List all events (including inactive ones) of the authenticated user's organization
-  @UseGuards(AuthGuard('jwt'), ActiveOrgGuard, RolesGuard)
+  @UseGuards(JwtOrApiKeyGuard, ActiveOrgGuard, RolesGuard)
   @Roles(
     UserRole.ADMIN,
     UserRole.MANAGER,
@@ -53,12 +60,20 @@ export class EventsController {
     UserRole.SUPER_ADMIN,
   )
   @Get('events')
-  async getAdminEvents(@Req() req: any) {
-    return this.eventsService.findAllForAdmin(req.user.organizationId);
+  async getAdminEvents(
+    @Req() req: any,
+    @Query('cursor') cursor?: string,
+    @Query('limit') limit?: number,
+  ) {
+    return this.eventsService.findAllForAdmin(
+      req.user.organizationId,
+      cursor,
+      limit ? Number(limit) : undefined,
+    );
   }
 
   // 4. Protected endpoint - Create a new event (for organizers)
-  @UseGuards(AuthGuard('jwt'), ActiveOrgGuard, RolesGuard)
+  @UseGuards(JwtOrApiKeyGuard, ActiveOrgGuard, RolesGuard)
   @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.SUPER_ADMIN)
   @Post('events')
   async createEvent(@Req() req: any, @Body() dto: CreateEventDto) {
@@ -66,7 +81,7 @@ export class EventsController {
   }
 
   // 5. Protected endpoint - Update/edit event details partially (for organizers)
-  @UseGuards(AuthGuard('jwt'), ActiveOrgGuard, RolesGuard)
+  @UseGuards(JwtOrApiKeyGuard, ActiveOrgGuard, RolesGuard)
   @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.SUPER_ADMIN)
   @Patch('events/:eventId')
   async updateEvent(
@@ -78,7 +93,7 @@ export class EventsController {
   }
 
   // 6. Protected endpoint - Delete an event (for organizers)
-  @UseGuards(AuthGuard('jwt'), ActiveOrgGuard, RolesGuard)
+  @UseGuards(JwtOrApiKeyGuard, ActiveOrgGuard, RolesGuard)
   @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.SUPER_ADMIN)
   @Delete('events/:eventId')
   async deleteEvent(@Req() req: any, @Param('eventId') eventId: string) {
@@ -86,7 +101,7 @@ export class EventsController {
   }
 
   // 7. Protected endpoint - View registrations list for an event
-  @UseGuards(AuthGuard('jwt'), ActiveOrgGuard, RolesGuard)
+  @UseGuards(JwtOrApiKeyGuard, ActiveOrgGuard, RolesGuard)
   @Roles(
     UserRole.ADMIN,
     UserRole.MANAGER,
@@ -97,15 +112,19 @@ export class EventsController {
   async getEventRegistrations(
     @Req() req: any,
     @Param('eventId') eventId: string,
+    @Query('cursor') cursor?: string,
+    @Query('limit') limit?: number,
   ) {
     return this.eventsService.getRegistrations(
       eventId,
       req.user.organizationId,
+      cursor,
+      limit ? Number(limit) : undefined,
     );
   }
 
   // 8. Protected endpoint - Export registrations list as CSV
-  @UseGuards(AuthGuard('jwt'), ActiveOrgGuard, RolesGuard)
+  @UseGuards(JwtOrApiKeyGuard, ActiveOrgGuard, RolesGuard)
   @Roles(
     UserRole.ADMIN,
     UserRole.MANAGER,
@@ -132,7 +151,7 @@ export class EventsController {
   }
 
   // 9. Protected Endpoint - Add a Custom Field (Checks ownership & 20 fields max cap)
-  @UseGuards(AuthGuard('jwt'), ActiveOrgGuard, RolesGuard)
+  @UseGuards(JwtOrApiKeyGuard, ActiveOrgGuard, RolesGuard)
   @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.SUPER_ADMIN)
   @Post('events/:eventId/fields')
   async addCustomField(
@@ -145,6 +164,7 @@ export class EventsController {
       placeholder?: string;
       required?: boolean;
       options?: any;
+      isIdentityField?: boolean;
     },
   ) {
     // IDOR protection
@@ -163,6 +183,23 @@ export class EventsController {
       );
     }
 
+    const isIdentity = !!dto.isIdentityField;
+    const finalType = String(dto.type).toUpperCase() as any;
+
+    if (isIdentity) {
+      if (finalType !== 'EMAIL') {
+        throw new BadRequestException('Identity field must have type EMAIL.');
+      }
+      const existingIdentity = await this.prisma.formField.findFirst({
+        where: { eventId, isIdentityField: true },
+      });
+      if (existingIdentity) {
+        throw new BadRequestException(
+          'An identity field already exists for this event form.',
+        );
+      }
+    }
+
     // Determine default order index
     const lastField = await this.prisma.formField.findFirst({
       where: { eventId },
@@ -173,7 +210,7 @@ export class EventsController {
     return this.prisma.formField.create({
       data: {
         eventId,
-        type: String(dto.type).toUpperCase() as any,
+        type: finalType,
         label: dto.label,
         placeholder: dto.placeholder || null,
         required: !!dto.required,
@@ -183,13 +220,14 @@ export class EventsController {
             : JSON.stringify(dto.options)
           : '[]',
         order: orderIndex,
+        isIdentityField: isIdentity,
       },
     });
   }
 
   // 12. Protected Endpoint - Transactional Bulk Reordering
   // IMPORTANT: Must be declared BEFORE fields/:id so NestJS doesn't match "reorder" as a field ID
-  @UseGuards(AuthGuard('jwt'), ActiveOrgGuard, RolesGuard)
+  @UseGuards(JwtOrApiKeyGuard, ActiveOrgGuard, RolesGuard)
   @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.SUPER_ADMIN)
   @Patch('events/:eventId/fields/reorder')
   async reorderFields(
@@ -226,7 +264,7 @@ export class EventsController {
   }
 
   // 10. Protected Endpoint - Edit an Individual Field (Checks ownership)
-  @UseGuards(AuthGuard('jwt'), ActiveOrgGuard, RolesGuard)
+  @UseGuards(JwtOrApiKeyGuard, ActiveOrgGuard, RolesGuard)
   @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.SUPER_ADMIN)
   @Patch('events/:eventId/fields/:id')
   async editCustomField(
@@ -240,6 +278,7 @@ export class EventsController {
       placeholder?: string;
       required?: boolean;
       options?: any;
+      isIdentityField?: boolean;
     },
   ) {
     // IDOR protection
@@ -272,6 +311,24 @@ export class EventsController {
           : JSON.stringify(dto.options);
     }
 
+    if (dto.isIdentityField !== undefined) {
+      if (dto.isIdentityField) {
+        const fieldType = dto.type ? String(dto.type).toUpperCase() : field.type;
+        if (fieldType !== 'EMAIL') {
+          throw new BadRequestException('Identity field must have type EMAIL.');
+        }
+        const existingIdentity = await this.prisma.formField.findFirst({
+          where: { eventId, isIdentityField: true, id: { not: fieldId } },
+        });
+        if (existingIdentity) {
+          throw new BadRequestException(
+            'An identity field already exists for this event form.',
+          );
+        }
+      }
+      updateData.isIdentityField = !!dto.isIdentityField;
+    }
+
     return this.prisma.formField.update({
       where: { id: fieldId },
       data: updateData,
@@ -280,7 +337,7 @@ export class EventsController {
 
   // 11. Protected Endpoint - Clear all custom registration fields
   // IMPORTANT: Must be declared BEFORE fields/:id so NestJS doesn't match "clear" as a field ID
-  @UseGuards(AuthGuard('jwt'), ActiveOrgGuard, RolesGuard)
+  @UseGuards(JwtOrApiKeyGuard, ActiveOrgGuard, RolesGuard)
   @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.SUPER_ADMIN)
   @Delete('events/:eventId/fields/clear')
   async clearAllFields(@Req() req: any, @Param('eventId') eventId: string) {
@@ -304,7 +361,7 @@ export class EventsController {
   }
 
   // 12. Protected Endpoint - Delete a Field by ID (Checks ownership)
-  @UseGuards(AuthGuard('jwt'), ActiveOrgGuard, RolesGuard)
+  @UseGuards(JwtOrApiKeyGuard, ActiveOrgGuard, RolesGuard)
   @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.SUPER_ADMIN)
   @Delete('events/:eventId/fields/:id')
   async deleteCustomField(
@@ -335,7 +392,7 @@ export class EventsController {
   }
 
   // 13. Protected Endpoint - Bulk Apply Preset fields (APPEND or REPLACE)
-  @UseGuards(AuthGuard('jwt'), ActiveOrgGuard, RolesGuard)
+  @UseGuards(JwtOrApiKeyGuard, ActiveOrgGuard, RolesGuard)
   @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.SUPER_ADMIN)
   @Post('events/:eventId/fields/preset')
   async applyPresetFields(

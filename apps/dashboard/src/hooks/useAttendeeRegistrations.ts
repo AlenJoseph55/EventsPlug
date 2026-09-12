@@ -7,6 +7,10 @@ export interface AttendeeRegistration {
   id: string;
   eventId: string;
   answers: Record<string, unknown>;
+  status: "REGISTERED" | "WAITLISTED" | "CHECKED_IN" | "CANCELLED";
+  checkedInAt?: string | null;
+  cancelledAt?: string | null;
+  promotedAt?: string | null;
   createdAt: string;
   eventTitle: string;
   eventDate: string;

@@ -1,13 +1,13 @@
 ## Purpose
-Defines the specifications for validating, processing, rate-limiting, and recording attendee registrations for events.
+Defines the specifications for validating, processing, rate-limiting, recording form submissions, and exporting responses as CSV.
 
 ## Requirements
 
 ### Requirement: Registration Submission & Validation
-The system SHALL validate registration form answers dynamically against the event's defined custom form fields.
+The system SHALL validate form submissions dynamically against the event's defined custom form fields.
 
 #### Scenario: Valid Submission
-- **WHEN** an attendee submits answers matching all field constraints (types, options, required flags)
+- **WHEN** a user submits answers matching all field constraints (types, options, required flags)
 - **THEN** the registration is successfully saved in the database
 
 #### Scenario: Missing Required Input
@@ -31,10 +31,10 @@ The system SHALL validate registration form answers dynamically against the even
 - **THEN** a validation error is returned indicating the value must be a valid number
 
 ### Requirement: Capacity Validation
-The system SHALL prevent new registrations if the event's attendee capacity is fully booked.
+The system SHALL prevent new form submissions if the event's registration limit is reached.
 
 #### Scenario: Registration Fails Due to Capacity Limit
-- **WHEN** an attendee submits a registration but the event's registration count has reached or exceeded `maxRegistrations`
+- **WHEN** a user submits a form but the event's registration count has reached or exceeded `maxRegistrations`
 - **THEN** a bad request exception is thrown stating "This event is fully booked! Registration limits have been reached."
 
 ### Requirement: Rate Limiting
@@ -44,29 +44,11 @@ The system SHALL limit registration submission rate per client to protect the en
 - **WHEN** a user client sends more than 10 registration requests within a 60-second window
 - **THEN** the request is throttled with a 429 Too Many Requests response
 
-### Requirement: Registration Code Generation
-The system SHALL assign a unique, human-readable registration code for every successful registration.
+### Requirement: Form Submissions Data Export
+The system SHALL support 1-click CSV download of all form submission answers for an event.
 
-#### Scenario: Generate Registration ID
-- **WHEN** a registration is successfully processed
-- **THEN** the system generates an ID formatted as: `REG-[EVENT-SLUG-UPPERCASE]-[RANDOM-8-HEX]`
-
-### Requirement: Unified Attendee Ticket Retrieval (B2C2B)
-The system SHALL allow authenticated users to retrieve a consolidated list of their event registrations using their account email address, matching against dynamic JSON field values.
-
-#### Scenario: Retrieve Personal Registrations
-- **WHEN** an authenticated user requests their registered events
-- **THEN** the system queries all registration records and returns those where any value in the custom answers JSON matches the user's account email address.
-
-### Requirement: Dynamic Feed Priority (B2C2B)
-The system SHALL dynamically order the dashboard feed based on user registration count.
-
-#### Scenario: User has Active Tickets
-- **WHEN** a user has one or more RSVP registrations
-- **THEN** the ticket feed is displayed at the top of the portal dashboard.
-
-#### Scenario: User has No Tickets
-- **WHEN** a user has zero RSVP registrations
-- **THEN** the hosted events control decks are prioritized at the top of the portal, and the empty tickets state is collapsed or omitted.
+#### Scenario: Export CSV
+- **WHEN** an organizer requests the CSV export endpoint for an event
+- **THEN** the server generates a formatted CSV spreadsheet containing field labels as column headers and registration answers as rows
 
 

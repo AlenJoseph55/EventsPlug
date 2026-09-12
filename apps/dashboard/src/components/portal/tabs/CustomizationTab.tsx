@@ -922,6 +922,7 @@ export default function CustomizationTab() {
                     }`}
                     style={{
                       ...mockupBgStyle,
+                      color: derived.textColor,
                       fontFamily,
                       "--hub-accent-color": adjustedAccentColor,
                       "--hub-bg-color": contrastBg,

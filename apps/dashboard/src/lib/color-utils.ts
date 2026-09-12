@@ -116,6 +116,7 @@ export interface PaletteIntent {
 export interface DerivedPalette {
   primaryColor: string;
   bgColor: string;
+  bgRgb: string;
   textColor: string;
   textSecondary: string;
   cardBg: string;
@@ -180,7 +181,7 @@ function getSkinStyles(skinId: string, primaryColor: string, textColor: string, 
       return {
         radiusCard: '16px',
         shadowCard: mode === 'light' ? '0 8px 32px 0 rgba(31, 38, 135, 0.05)' : '0 8px 32px 0 rgba(0, 0, 0, 0.3)',
-        cardBorder: mode === 'light' ? '1px solid rgba(15, 23, 42, 0.08)' : '1px solid rgba(255, 255, 255, 0.08)',
+        cardBorder: mode === 'light' ? '1px solid rgba(15, 23, 42, 0.04)' : '1px solid rgba(255, 255, 255, 0.05)',
       };
   }
 }
@@ -248,6 +249,9 @@ export function deriveThemeVariables(
   // Derive background color
   const bgOklch = getBackgroundOklch(surfaceTone, mode, accentHue);
   const bgColor = oklchToHex(bgOklch.l, bgOklch.c, bgOklch.h);
+  
+  const bgRgbObj = oklchToRgb(bgOklch.l, bgOklch.c, bgOklch.h);
+  const bgRgb = `${bgRgbObj.r}, ${bgRgbObj.g}, ${bgRgbObj.b}`;
 
   // Contrast adjusted accent color (primaryColor)
   const baseL = mode === 'dark' ? 0.65 : 0.50;
@@ -285,6 +289,7 @@ export function deriveThemeVariables(
   return {
     primaryColor,
     bgColor,
+    bgRgb,
     textColor,
     textSecondary,
     cardBg,
